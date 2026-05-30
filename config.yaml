@@ -11,7 +11,7 @@ clapper:
     # Hop size in seconds between windows.
     hop_seconds: 0.5
     # Minimum similarity score required to keep a window as a hit.
-    threshold: 0.30
+    threshold: 0.28
     # "auto" uses CUDA if available, otherwise CPU.
     device: auto
 
@@ -32,3 +32,7 @@ clapper:
       - production clap
       - sharp film clap
       - clapper strike
+
+  clip:
+    # Number of seconds to keep after the strongest clapper hit.
+    post_hit_seconds: 2.0

@@ -37,6 +37,7 @@ DEFAULT_WINDOW_SECONDS = 1.0
 DEFAULT_HOP_SECONDS = 0.5
 DEFAULT_THRESHOLD = 0.10
 DEFAULT_TOP_N = 3
+DEFAULT_POST_HIT_SECONDS = 2.0
 DEFAULT_TEXT_KEYS = [
     "clapper board snap",
     "sharp clap sound",
@@ -74,11 +75,19 @@ class TextSearchConfig:
 
 
 @dataclass(slots=True)
+class ClipConfig:
+    """Post-processing settings for clapper-driven audio trimming."""
+
+    post_hit_seconds: float = DEFAULT_POST_HIT_SECONDS
+
+
+@dataclass(slots=True)
 class ClapperConfig:
     """Top-level config for the clapper module."""
 
     audio_model: AudioModelConfig = field(default_factory=AudioModelConfig)
     text_search: TextSearchConfig = field(default_factory=TextSearchConfig)
+    clip: ClipConfig = field(default_factory=ClipConfig)
 
 
 @dataclass(slots=True)
@@ -201,11 +210,15 @@ def load_config(config_path: str | Path | None = None) -> ClapperConfig:
             "top_n": DEFAULT_TOP_N,
             "show_progress": True,
         },
+        "clip": {
+            "post_hit_seconds": DEFAULT_POST_HIT_SECONDS,
+        },
     }
     merged = _merge_config_dict(defaults, raw)
 
     audio_model_raw = merged["audio_model"]
     text_search_raw = merged["text_search"]
+    clip_raw = merged["clip"]
 
     audio_model = AudioModelConfig(
         model_name=str(audio_model_raw["model_name"]),
@@ -225,7 +238,10 @@ def load_config(config_path: str | Path | None = None) -> ClapperConfig:
         top_n=max(1, int(text_search_raw["top_n"])),
         show_progress=bool(text_search_raw["show_progress"]),
     )
-    return ClapperConfig(audio_model=audio_model, text_search=text_search)
+    clip = ClipConfig(
+        post_hit_seconds=max(0.0, float(clip_raw["post_hit_seconds"])),
+    )
+    return ClapperConfig(audio_model=audio_model, text_search=text_search, clip=clip)
 
 
 # ---------------------------------------------------------------------------

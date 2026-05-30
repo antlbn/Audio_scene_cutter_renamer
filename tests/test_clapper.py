@@ -46,6 +46,7 @@ clapper:
     assert config.audio_model.threshold == clapper.DEFAULT_THRESHOLD
     assert config.text_search.text_keys == ["custom key"]
     assert config.text_search.top_n == clapper.DEFAULT_TOP_N
+    assert config.clip.post_hit_seconds == clapper.DEFAULT_POST_HIT_SECONDS
 
 
 def test_select_top_matches_orders_descending():
