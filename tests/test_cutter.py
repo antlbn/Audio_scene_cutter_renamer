@@ -62,17 +62,17 @@ def test_cut_audio_by_clapper_uses_best_hit_and_returns_standardized_audio(monke
 
     assert clipped.clapper_result is result
     assert clipped.best_hit.timestamp == 3.2
-    assert clipped.duration_seconds == pytest.approx(0.8)
-    assert clipped.clip_start_seconds == pytest.approx(3.2)
+    assert clipped.duration_seconds == pytest.approx(4.0)
+    assert clipped.clip_start_seconds == pytest.approx(0.0)
     assert clipped.clip_end_seconds == pytest.approx(4.0)
     assert clipped.standardized_audio.payload == b"trimmed-aac"
     assert clipped.standardized_audio.sample_rate == 16_000
-    assert clipped.standardized_audio.duration_seconds == pytest.approx(0.8)
+    assert clipped.standardized_audio.duration_seconds == pytest.approx(4.0)
 
     cmd = recorded["cmd"]
     assert cmd[0] == "ffmpeg"
-    assert cmd[cmd.index("-ss") + 1] == "3.200000"
-    assert cmd[cmd.index("-t") + 1] == "0.800000"
+    assert cmd[cmd.index("-ss") + 1] == "0.000000"
+    assert cmd[cmd.index("-t") + 1] == "4.000000"
     assert recorded["input"] == b"source-aac"
 
 

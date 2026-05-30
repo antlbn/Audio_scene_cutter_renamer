@@ -54,9 +54,10 @@ class PipelineResult(BaseModel):
 
     # LLM Scene Parser
     llm_model: str = Field(description="LLM model used for scene parsing")
-    llm_scene: str = Field(description="Extracted scene name/number")
-    llm_take: int = Field(description="Extracted take number")
-    llm_raw_announcement: str = Field(description="Verification text of the extracted announcement")
+    llm_sequence: str | None = Field(None, description="Extracted sequence number")
+    llm_shot: str | None = Field(None, description="Extracted shot number")
+    llm_take: int | None = Field(None, description="Extracted take number")
+    llm_announcement: str = Field(description="Full raw announcement as spoken")
 
 
 def run_pipeline(
@@ -97,9 +98,12 @@ def run_pipeline(
     print(f"[pipeline] standardizing audio: {audio_path.name}", file=sys.stderr)
     std_audio = preprocessor.standardize_audio(audio_path, config=prep_config)
 
-    # 3. Clapper: run CLAP detector
+    # 3. Clapper: run CLAP detector on the raw source file.
+    # File paths are always loaded directly (torchaudio/ffmpeg) to preserve
+    # the original sample rate — preprocessing would downsample to 16 kHz and
+    # encode AAC, destroying the high-frequency transients CLAP relies on.
     clap_runtime = clapper.load_runtime(clap_config)
-    clap_res = clapper.analyze_audio(std_audio, config=clap_config, runtime=clap_runtime)
+    clap_res = clapper.analyze_audio(audio_path, config=clap_config, runtime=clap_runtime)
 
     # 4. Cutter & Whisper: run based on clapper hits
     best_hit = None
@@ -148,9 +152,10 @@ def run_pipeline(
         whisper_language=whisp_res.language,
         whisper_task=whisp_res.task,
         llm_model=llm_res.model,
-        llm_scene=llm_res.scene_take.scene,
+        llm_sequence=llm_res.scene_take.sequence,
+        llm_shot=llm_res.scene_take.shot,
         llm_take=llm_res.scene_take.take,
-        llm_raw_announcement=llm_res.scene_take.raw_announcement,
+        llm_announcement=llm_res.scene_take.announcement,
     )
 
 
@@ -201,9 +206,10 @@ def render_pipeline_result(result: PipelineResult) -> str:
         "",
         "🤖 Structured Parser (LLM):",
         f"   Model:            {result.llm_model}",
-        f"   🎬 Scene:         {result.llm_scene}",
+        f"   🎬 Sequence:      {result.llm_sequence}",
+        f"   🎞  Shot:          {result.llm_shot}",
         f"   🎥 Take:          {result.llm_take}",
-        f"   📝 Verification:  \"{result.llm_raw_announcement}\"",
+        f"   📝 Announcement:  \"{result.llm_announcement}\"",
     ])
 
     return "\n".join(lines)

@@ -75,7 +75,7 @@ def cut_audio_by_clapper(
     clapper_result: clapper.ClapperResult,
     config: clapper.ClapperConfig | None = None,
 ) -> CutterResult:
-    """Trim the source audio after the strongest clapper hit and keep it in memory."""
+    """Trim the source audio from the start up to the strongest clapper hit + post_hit_seconds."""
 
     config = config or clapper.load_config()
     if isinstance(audio_source, (str, Path)):
@@ -86,14 +86,18 @@ def cut_audio_by_clapper(
     best_hit = _select_best_hit(clapper_result)
 
     source_duration_seconds = standardized_audio.duration_seconds
-    clip_start_seconds = max(0.0, float(best_hit.timestamp))
-    if clip_start_seconds >= source_duration_seconds:
-        raise ValueError("Best clapper timestamp is at or beyond the source audio duration")
-
+    post_hit_offset = config.clip.post_hit_seconds
+    clip_start_seconds = 0.0
     clip_end_seconds = min(
+        float(best_hit.timestamp) + post_hit_offset,
         source_duration_seconds,
-        clip_start_seconds + float(config.clip.post_hit_seconds),
     )
+    if clip_end_seconds <= 0:
+        raise ValueError(
+            f"Best clapper timestamp ({best_hit.timestamp:.2f}s) + "
+            f"post_hit_seconds ({post_hit_offset:.2f}s) results in a non-positive clip end"
+        )
+
     clip_duration_seconds = clip_end_seconds - clip_start_seconds
     if clip_duration_seconds <= 0:
         raise ValueError("Computed clip duration is empty")

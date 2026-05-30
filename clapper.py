@@ -417,7 +417,12 @@ def _prepare_audio_windows(
     audio_source: str | Path | preprocessor.StandardizedAudio,
     config: ClapperConfig,
 ) -> tuple[Path, torch.Tensor, int, int, list[int]]:
-    """Load standardized audio, resample if needed, and build the sliding window plan."""
+    """Load audio, resample to the model target rate, and build the sliding window plan.
+
+    File paths are always loaded directly via torchaudio/ffmpeg to preserve the
+    original sample rate and avoid lossy transcoding.  A pre-built
+    ``StandardizedAudio`` object is decoded in-memory instead.
+    """
 
     if isinstance(audio_source, preprocessor.StandardizedAudio):
         audio_path = Path(audio_source.file_name)
@@ -427,11 +432,11 @@ def _prepare_audio_windows(
         )
     else:
         audio_path = Path(audio_source)
-        standardized = preprocessor.standardize_audio(audio_path)
-        waveform, sample_rate = preprocessor.decode_standardized_audio(
-            standardized,
-            target_sample_rate=config.audio_model.target_sample_rate,
-        )
+        waveform, sample_rate = _load_audio(audio_path)
+        target_sr = config.audio_model.target_sample_rate
+        if sample_rate != target_sr:
+            waveform = torchaudio.functional.resample(waveform, sample_rate, target_sr)
+            sample_rate = target_sr
 
     window_size = max(1, int(round(config.audio_model.window_seconds * sample_rate)))
     hop_size = max(1, int(round(config.audio_model.hop_seconds * sample_rate)))
@@ -653,7 +658,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        result = detect_clapper(args.audio_file, config_path=args.config, debug=args.debug)
+        result = detect_clapper(
+            args.audio_file,
+            config_path=args.config,
+            debug=args.debug,
+        )
         if args.json:
             print(json.dumps(asdict(result), ensure_ascii=False))
         else:

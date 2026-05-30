@@ -25,7 +25,7 @@ LOGGER = logging.getLogger("whisper")
 DEFAULT_MODEL_ID = "openai/whisper-small"
 DEFAULT_CACHE_DIR = ".cache/whisper"
 DEFAULT_DEVICE = "auto"
-DEFAULT_LANGUAGE = "ru"
+DEFAULT_LANGUAGE = ""
 DEFAULT_TASK = "transcribe"
 DEFAULT_RETURN_TIMESTAMPS = True
 

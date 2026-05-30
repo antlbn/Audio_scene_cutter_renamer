@@ -47,9 +47,10 @@ def fake_whisper_result():
 @pytest.fixture
 def fake_scene_parser_result():
     st = MagicMock()
-    st.scene = "1"
+    st.sequence = "1"
+    st.shot = "3"
     st.take = 4
-    st.raw_announcement = "сцена один дубль четыре"
+    st.announcement = "сцена один дубль четыре"
 
     res = MagicMock()
     res.scene_take = st
@@ -92,7 +93,8 @@ def test_run_pipeline_with_clapper_hits(
         assert result.cutter_clip_start == 2.5
         assert result.cutter_clip_end == 4.5
         assert result.whisper_text == "сцена один дубль четыре"
-        assert result.llm_scene == "1"
+        assert result.llm_sequence == "1"
+        assert result.llm_shot == "3"
         assert result.llm_take == 4
 
 
@@ -124,7 +126,8 @@ def test_run_pipeline_without_clapper_hits(
         assert result.cutter_clip_start is None
         assert result.cutter_clip_end is None
         assert result.whisper_text == "сцена один дубль четыре"
-        assert result.llm_scene == "1"
+        assert result.llm_sequence == "1"
+        assert result.llm_shot == "3"
         assert result.llm_take == 4
 
 
@@ -148,9 +151,10 @@ def test_pipeline_cli_output(tmp_path, capsys):
         whisper_language="ru",
         whisper_task="transcribe",
         llm_model="google/gemini-3.1-flash-lite",
-        llm_scene="1",
+        llm_sequence="1",
+        llm_shot="3",
         llm_take=4,
-        llm_raw_announcement="сцена один дубль четыре"
+        llm_announcement="сцена один дубль четыре"
     )
 
     with patch("pipeline.run_pipeline", return_value=mock_result):
@@ -160,7 +164,8 @@ def test_pipeline_cli_output(tmp_path, capsys):
         captured = capsys.readouterr()
         assert "Audio Scene Pipeline Execution Summary" in captured.out
         assert "Source File:      audio.wav" in captured.out
-        assert "Scene:         1" in captured.out
+        assert "Sequence:      1" in captured.out
+        assert "Shot:          3" in captured.out
         assert "Take:          4" in captured.out
 
         # 2. JSON format
@@ -169,7 +174,8 @@ def test_pipeline_cli_output(tmp_path, capsys):
         captured = capsys.readouterr()
         parsed = json.loads(captured.out.strip())
         assert parsed["source_file"] == "audio.wav"
-        assert parsed["llm_scene"] == "1"
+        assert parsed["llm_sequence"] == "1"
+        assert parsed["llm_shot"] == "3"
         assert parsed["llm_take"] == 4
 
         # 3. Save format
@@ -179,5 +185,6 @@ def test_pipeline_cli_output(tmp_path, capsys):
         assert output_json_file.exists()
         saved_data = json.loads(output_json_file.read_text())
         assert saved_data["source_file"] == "audio.wav"
-        assert saved_data["llm_scene"] == "1"
+        assert saved_data["llm_sequence"] == "1"
+        assert saved_data["llm_shot"] == "3"
         assert saved_data["llm_take"] == 4

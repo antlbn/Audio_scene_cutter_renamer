@@ -24,16 +24,18 @@ DEFAULT_API_KEY_ENV = "OPENROUTER_API_KEY"
 DEFAULT_PROMPT_PATH = "prompts/scene_parser.md"
 DEFAULT_TEMPERATURE = 0.0
 DEFAULT_MAX_TOKENS = 256
-DEFAULT_SCENE_DESCRIPTION = "Full scene description (e.g. 'сцена тридцать два', 'сцена 3B')"
-DEFAULT_TAKE_DESCRIPTION = "The take number (e.g. 1, 2, 3)"
+DEFAULT_SEQUENCE_DESCRIPTION = "Sequence number (séquence) (e.g. '1', '10')"
+DEFAULT_SHOT_DESCRIPTION = "Shot/plan number (plan) (e.g. '3', '3A')"
+DEFAULT_TAKE_DESCRIPTION = "Take/prise number (prise) (e.g. 1, 2, 3)"
 
 
 class SceneTake(BaseModel):
-    """Structured scene and take information extracted from spoken audio."""
+    """Structured sequence/shot/take information extracted from spoken audio."""
 
-    scene: str = Field(description="The scene name or number (e.g. '3', '3A', '10')")
-    take: int = Field(description="The take number (e.g. 1, 2, 3)")
-    raw_announcement: str = Field(description="The exact text of the announcement")
+    sequence: str | None = Field(default=None, description="Sequence number (séquence) (e.g. '1', '10')")
+    shot: str | None = Field(default=None, description="Shot/plan number (plan) (e.g. '3', '3A')")
+    take: int | None = Field(default=None, description="Take/prise number (prise) (e.g. 1, 2, 3)")
+    announcement: str = Field(description="The full raw announcement exactly as spoken (unstructured)")
 
 
 @dataclass(slots=True)
@@ -46,7 +48,8 @@ class SceneParserConfig:
     prompt_path: str = DEFAULT_PROMPT_PATH
     temperature: float = DEFAULT_TEMPERATURE
     max_tokens: int = DEFAULT_MAX_TOKENS
-    scene_description: str = DEFAULT_SCENE_DESCRIPTION
+    sequence_description: str = DEFAULT_SEQUENCE_DESCRIPTION
+    shot_description: str = DEFAULT_SHOT_DESCRIPTION
     take_description: str = DEFAULT_TAKE_DESCRIPTION
 
 
@@ -114,6 +117,14 @@ def load_config(config_path: str | Path | None = None) -> SceneParserConfig:
     else:
         LOGGER.warning("Config file %s not found, using built-in defaults", config_file)
 
+    # Map old config keys if they exist in config.yaml
+    if "scene_description" in raw and "sequence_description" not in raw:
+        raw["sequence_description"] = raw["scene_description"]
+    if "plan_description" in raw and "shot_description" not in raw:
+        raw["shot_description"] = raw["plan_description"]
+    if "prise_description" in raw and "take_description" not in raw:
+        raw["take_description"] = raw["prise_description"]
+
     defaults = {
         "model": DEFAULT_MODEL,
         "api_base": DEFAULT_API_BASE,
@@ -121,7 +132,8 @@ def load_config(config_path: str | Path | None = None) -> SceneParserConfig:
         "prompt_path": DEFAULT_PROMPT_PATH,
         "temperature": DEFAULT_TEMPERATURE,
         "max_tokens": DEFAULT_MAX_TOKENS,
-        "scene_description": DEFAULT_SCENE_DESCRIPTION,
+        "sequence_description": DEFAULT_SEQUENCE_DESCRIPTION,
+        "shot_description": DEFAULT_SHOT_DESCRIPTION,
         "take_description": DEFAULT_TAKE_DESCRIPTION,
     }
     merged = _merge_config_dict(defaults, raw)
@@ -132,7 +144,8 @@ def load_config(config_path: str | Path | None = None) -> SceneParserConfig:
         prompt_path=str(merged["prompt_path"]),
         temperature=float(merged["temperature"]),
         max_tokens=int(merged["max_tokens"]),
-        scene_description=str(merged["scene_description"]),
+        sequence_description=str(merged["sequence_description"]),
+        shot_description=str(merged["shot_description"]),
         take_description=str(merged["take_description"]),
     )
 
@@ -187,14 +200,16 @@ def parse_scene(
     prompt_template = prompt_file.read_text()
 
     # Generate JSON schema representation for the LLM
-    # We specify scene and take as requested. We can pass a simplified schema or full JSON schema.
+    # We specify sequence, shot and take as requested. We can pass a simplified schema or full JSON schema.
     schema_desc = {
         "type": "object",
         "properties": {
-            "scene": {"type": "string", "description": config.scene_description},
-            "take": {"type": "integer", "description": config.take_description}
+            "sequence": {"type": "string", "description": config.sequence_description},
+            "shot": {"type": "string", "description": config.shot_description},
+            "take": {"type": "integer", "description": config.take_description},
+            "announcement": {"type": "string", "description": "The full raw announcement exactly as spoken"},
         },
-        "required": ["scene", "take"]
+        "required": ["sequence", "shot", "take", "announcement"]
     }
     schema_str = json.dumps(schema_desc, indent=2)
 
@@ -223,9 +238,9 @@ def parse_scene(
     except json.JSONDecodeError as exc:
         raise ValueError(f"LLM did not return valid JSON: {raw_response}") from exc
 
-    # Ensure raw_announcement is present and filled
-    if "raw_announcement" not in parsed_dict or not parsed_dict["raw_announcement"]:
-        parsed_dict["raw_announcement"] = text
+    # Ensure announcement is present and filled
+    if "announcement" not in parsed_dict or not parsed_dict["announcement"]:
+        parsed_dict["announcement"] = text
 
     # Parse and validate with Pydantic
     scene_take = SceneTake.model_validate(parsed_dict)
@@ -264,20 +279,21 @@ def main(argv: list[str] | None = None) -> int:
         result = parse_scene(args.text, config=config)
 
         if args.json:
-            # Output raw scene_take fields alongside metadata
             out_data = {
-                "scene": result.scene_take.scene,
+                "sequence": result.scene_take.sequence,
+                "shot": result.scene_take.shot,
                 "take": result.scene_take.take,
-                "raw_announcement": result.scene_take.raw_announcement,
+                "announcement": result.scene_take.announcement,
                 "llm_model": result.model,
             }
             print(json.dumps(out_data, ensure_ascii=False))
         else:
             print("🎬 LLM Scene Parser summary")
             print(f"  🧠 Model: {result.model}")
-            print(f"  🎬 Scene: {result.scene_take.scene}")
+            print(f"  🎬 Sequence: {result.scene_take.sequence}")
+            print(f"  🎞 Shot: {result.scene_take.shot}")
             print(f"  🎥 Take: {result.scene_take.take}")
-            print(f"  📝 Announcement: {result.scene_take.raw_announcement}")
+            print(f"  📝 Announcement: {result.scene_take.announcement}")
         return 0
     except Exception as exc:
         LOGGER.exception("scene_parser failed: %s", exc)

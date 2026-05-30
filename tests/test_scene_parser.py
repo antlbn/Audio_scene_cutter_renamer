@@ -31,37 +31,39 @@ scene_parser:
     assert config.prompt_path == scene_parser.DEFAULT_PROMPT_PATH
     assert config.temperature == 0.1
     assert config.max_tokens == scene_parser.DEFAULT_MAX_TOKENS
-    assert config.scene_description == scene_parser.DEFAULT_SCENE_DESCRIPTION
+    assert config.sequence_description == scene_parser.DEFAULT_SEQUENCE_DESCRIPTION
+    assert config.shot_description == scene_parser.DEFAULT_SHOT_DESCRIPTION
     assert config.take_description == scene_parser.DEFAULT_TAKE_DESCRIPTION
 
 
-def test_scene_take_pydantic_validation():
-    # Happy path
-    valid_data = {
-        "scene": "3A",
-        "take": 2,
-        "raw_announcement": "сцена три а дубль два"
-    }
-    st = SceneTake.model_validate(valid_data)
-    assert st.scene == "3A"
-    assert st.take == 2
-    assert st.raw_announcement == "сцена три а дубль два"
+def test_scene_parser_cli(capsys):
+    mock_result = SceneParseResult(
+        scene_take=SceneTake(sequence="12", shot="3", take=5, announcement="сцена двенадцать дубль пять"),
+        model="test-model",
+        raw_llm_response="{}"
+    )
 
-    # Missing field
-    invalid_data = {
-        "scene": "3A",
-        # missing take
-    }
-    with pytest.raises(ValidationError):
-        SceneTake.model_validate(invalid_data)
+    with patch("scene_parser.parse_scene", return_value=mock_result) as mock_parse:
+        # Test human-readable output
+        exit_code = scene_parser.main(["сцена двенадцать дубль пять"])
+        assert exit_code == 0
+        mock_parse.assert_called_once()
+        captured = capsys.readouterr()
+        assert "Sequence: 12" in captured.out
+        assert "Shot: 3" in captured.out
+        assert "Take: 5" in captured.out
 
-    # Invalid take type
-    invalid_take = {
-        "scene": "3A",
-        "take": "not-an-int",
-    }
-    with pytest.raises(ValidationError):
-        SceneTake.model_validate(invalid_take)
+        # Test JSON output
+        mock_parse.reset_mock()
+        exit_code = scene_parser.main(["сцена двенадцать дубль пять", "--json"])
+        assert exit_code == 0
+        mock_parse.assert_called_once()
+        captured = capsys.readouterr()
+        parsed_out = json.loads(captured.out.strip())
+        assert parsed_out["sequence"] == "12"
+        assert parsed_out["shot"] == "3"
+        assert parsed_out["take"] == 5
+        assert parsed_out["announcement"] == "сцена двенадцать дубль пять"
 
 
 def test_parse_scene_with_mocked_llm(tmp_path: Path, monkeypatch):
@@ -88,9 +90,10 @@ def test_parse_scene_with_mocked_llm(tmp_path: Path, monkeypatch):
     # Mock the OpenAI client and response
     mock_choice = MagicMock()
     mock_choice.message.content = json.dumps({
-        "scene": "4",
+        "sequence": "3",
+        "shot": "4",
         "take": 1,
-        "raw_announcement": "сцена четыре дубль один"
+        "announcement": "сцена четыре дубль один"
     })
     mock_response = MagicMock()
     mock_response.choices = [mock_choice]
@@ -117,9 +120,10 @@ def test_parse_scene_with_mocked_llm(tmp_path: Path, monkeypatch):
         assert call_kwargs["response_format"] == {"type": "json_object"}
 
         # Verify parsed output
-        assert result.scene_take.scene == "4"
+        assert result.scene_take.sequence == "3"
+        assert result.scene_take.shot == "4"
         assert result.scene_take.take == 1
-        assert result.scene_take.raw_announcement == whisper_text
+        assert result.scene_take.announcement == whisper_text
         assert result.model == "google/gemini-2.0-flash-001"
 
 
@@ -134,10 +138,11 @@ def test_parse_scene_populates_missing_raw_announcement(tmp_path: Path, monkeypa
 
     whisper_text = "сцена пять дубль три"
 
-    # LLM doesn't return raw_announcement in this JSON
+    # LLM doesn't return announcement in this JSON
     mock_choice = MagicMock()
     mock_choice.message.content = json.dumps({
-        "scene": "5",
+        "sequence": "2",
+        "shot": "5",
         "take": 3
     })
     mock_response = MagicMock()
@@ -147,35 +152,41 @@ def test_parse_scene_populates_missing_raw_announcement(tmp_path: Path, monkeypa
 
     with patch("scene_parser.OpenAI", return_value=mock_client):
         result = scene_parser.parse_scene(whisper_text, config=config)
-        assert result.scene_take.scene == "5"
+        assert result.scene_take.sequence == "2"
+        assert result.scene_take.shot == "5"
         assert result.scene_take.take == 3
         # Should be auto-populated with original whisper_text
-        assert result.scene_take.raw_announcement == whisper_text
+        assert result.scene_take.announcement == whisper_text
 
 
-def test_scene_parser_cli(capsys):
-    mock_result = SceneParseResult(
-        scene_take=SceneTake(scene="12", take=5, raw_announcement="сцена двенадцать дубль пять"),
-        model="test-model",
-        raw_llm_response="{}"
-    )
+def test_scene_take_pydantic_validation():
+    # Happy path
+    valid_data = {
+        "sequence": "3",
+        "shot": "3A",
+        "take": 2,
+        "announcement": "sequence three shot three a take two"
+    }
+    st = SceneTake.model_validate(valid_data)
+    assert st.sequence == "3"
+    assert st.shot == "3A"
+    assert st.take == 2
+    assert st.announcement == "sequence three shot three a take two"
 
-    with patch("scene_parser.parse_scene", return_value=mock_result) as mock_parse:
-        # Test human-readable output
-        exit_code = scene_parser.main(["сцена двенадцать дубль пять"])
-        assert exit_code == 0
-        mock_parse.assert_called_once()
-        captured = capsys.readouterr()
-        assert "Scene: 12" in captured.out
-        assert "Take: 5" in captured.out
+    # Missing required announcement field
+    invalid_data = {
+        "sequence": "3",
+        "shot": "3A",
+        "take": 2,
+        # missing announcement
+    }
+    with pytest.raises(ValidationError):
+        SceneTake.model_validate(invalid_data)
 
-        # Test JSON output
-        mock_parse.reset_mock()
-        exit_code = scene_parser.main(["сцена двенадцать дубль пять", "--json"])
-        assert exit_code == 0
-        mock_parse.assert_called_once()
-        captured = capsys.readouterr()
-        parsed_out = json.loads(captured.out.strip())
-        assert parsed_out["scene"] == "12"
-        assert parsed_out["take"] == 5
-        assert parsed_out["raw_announcement"] == "сцена двенадцать дубль пять"
+    # Invalid take type
+    invalid_take = {
+        "announcement": "test",
+        "take": "not-an-int",
+    }
+    with pytest.raises(ValidationError):
+        SceneTake.model_validate(invalid_take)

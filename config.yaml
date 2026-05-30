@@ -11,7 +11,7 @@ clapper:
     # Hop size in seconds between windows.
     hop_seconds: 0.5
     # Minimum similarity score required to keep a window as a hit.
-    threshold: 0.28
+    threshold: 0.25
     # "auto" uses CUDA if available, otherwise CPU.
     device: auto
 
@@ -23,15 +23,15 @@ clapper:
     # Default text keys used to compare against the audio windows.
     text_keys:
       - clapper board snap
-      - sharp clap sound
-      - loud click
+      #- sharp clap sound
+      #- loud click
       - film slate clap
-      - clap noise
-      - clapperboard closing
+      #- clap noise
+      #- clapperboard closing
       - slate snap
-      - production clap
+      #- production clap
       - sharp film clap
-      - clapper strike
+      #- clapper strike
 
   clip:
     # Number of seconds to keep after the strongest clapper hit.
@@ -55,7 +55,7 @@ whisper:
   # "auto" uses CUDA if available, otherwise CPU.
   device: auto
   # Default transcription language from the notebook experiments.
-  language: french
+  language: french 
   # Whisper task used by default in the notebook.
   task: transcribe
   # Keep timestamps available for downstream parsing.
@@ -74,8 +74,10 @@ scene_parser:
   temperature: 0.0
   # Max tokens in the LLM response.
   max_tokens: 256
-  # Instruction/description for the scene field to guide the LLM format.
-  scene_description: "Full scene description (e.g. 'сцена тридцать два', 'сцена 3B')"
+  # Instruction/description for the sequence field to guide the LLM format.
+  sequence_description: "Sequence number (séquence) (e.g. '1', '10')"
+  # Instruction/description for the shot field to guide the LLM format.
+  shot_description: "Shot/plan number (plan) (e.g. '3', '3A')"
   # Instruction/description for the take field to guide the LLM format.
-  take_description: "The take number (e.g. 1, 2, 3)"
+  take_description: "Take/prise number (prise) (e.g. 1, 2, 3)"
 
