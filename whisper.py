@@ -6,6 +6,8 @@ import argparse
 import json
 import logging
 import sys
+import threading
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -157,8 +159,9 @@ def _load_env_file(env_path: Path) -> None:
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
+        if key:
+            if key not in os.environ or os.environ[key] in ("your_openrouter_key_here", "YOUR_HUGGING_FACE_TOKEN_HERE", "YOUR_HF_TOKEN_HERE", "YOUR_KEY_HERE", ""):
+                os.environ[key] = value
 
 
 def _normalize_timestamp(value: Any) -> tuple[float | None, float | None] | None:
@@ -241,6 +244,42 @@ def _standardize_source(
     return preprocessor.standardize_audio(source)
 
 
+class ConsoleSpinner:
+    """A premium console spinner to show progress on stderr."""
+
+    def __init__(self, message: str = "Working"):
+        self.message = message
+        self.frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        self.running = False
+        self.thread = None
+
+    def _spin(self) -> None:
+        idx = 0
+        while self.running:
+            frame = self.frames[idx % len(self.frames)]
+            sys.stderr.write(f"\r\033[K[whisper] {frame} {self.message}")
+            sys.stderr.flush()
+            idx += 1
+            time.sleep(0.08)
+
+    def __enter__(self) -> ConsoleSpinner:
+        if sys.stderr.isatty():
+            self.running = True
+            self.thread = threading.Thread(target=self._spin, daemon=True)
+            self.thread.start()
+        else:
+            print(f"[whisper] {self.message}...", file=sys.stderr, flush=True)
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if self.running:
+            self.running = False
+            if self.thread:
+                self.thread.join()
+            sys.stderr.write("\r\033[K")
+            sys.stderr.flush()
+
+
 def transcribe_audio(
     source: str | Path | preprocessor.StandardizedAudio | cutter.CutterResult,
     config: WhisperConfig | None = None,
@@ -257,14 +296,16 @@ def transcribe_audio(
         target_sample_rate=16_000,
     )
     audio_array = waveform.detach().cpu().numpy()
-    raw_result = runtime.asr_pipeline(
-        {"array": audio_array, "sampling_rate": sample_rate},
-        return_timestamps=config.return_timestamps,
-        generate_kwargs={
-            "task": config.task,
-            "language": config.language,
-        },
-    )
+
+    with ConsoleSpinner(f"transcribing audio ({config.language})..."):
+        raw_result = runtime.asr_pipeline(
+            {"array": audio_array, "sampling_rate": sample_rate},
+            return_timestamps=config.return_timestamps,
+            generate_kwargs={
+                "task": config.task,
+                "language": config.language,
+            },
+        )
 
     text = str(raw_result.get("text", ""))
     chunks = _normalize_chunks(raw_result.get("chunks"))

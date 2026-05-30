@@ -161,8 +161,9 @@ def _load_env_file(env_path: Path) -> None:
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
+        if key:
+            if key not in os.environ or os.environ[key] in ("your_openrouter_key_here", "YOUR_HUGGING_FACE_TOKEN_HERE", "YOUR_HF_TOKEN_HERE", "YOUR_KEY_HERE", ""):
+                os.environ[key] = value
 
 
 def _merge_config_dict(defaults: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:

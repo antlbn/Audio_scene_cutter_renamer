@@ -121,6 +121,55 @@ uv run python whisper.py claps/тест.wav --task translate --json
 
 ---
 
+## Use Case 3 — Извлечение сцены и дубля через LLM (scene_parser.py)
+
+Модуль `scene_parser.py` отправляет транскрибированный текст в LLM через API OpenRouter, извлекает структурированную информацию и валидирует её по Pydantic-схеме `SceneTake`.
+
+Перед запуском убедитесь, что в файле `.env` указан валидный ключ API:
+```dotenv
+OPENROUTER_API_KEY=ваш_ключ_openrouter_здесь
+```
+
+Настройки в `config.yaml`, секция `scene_parser`:
+* `model` — модель на OpenRouter (по умолчанию `google/gemini-3.1-flash-lite`).
+* `scene_description` и `take_description` — текстовые инструкции, передаваемые в LLM для гибкой настройки формата извлечения сцены и дубля.
+
+Запуск модуля в терминале напрямую:
+```bash
+# базовый запуск (human-readable вывод)
+uv run python scene_parser.py "сцена тридцать два дубль пять"
+
+# JSON-вывод (удобно для скриптов)
+uv run python scene_parser.py "сцена тридцать два дубль пять" --json
+```
+
+---
+
+## Use Case 4 — Сквозной пайплайн обработки (pipeline.py)
+
+Сводный оркестратор пайплайна `pipeline.py` последовательно прогоняет аудиофайл через все этапы и выводит единый структурированный результат.
+
+**Как это работает:**
+1. Приведение аудиофайла к стандарту в памяти (`preprocessor.py`).
+2. Поиск хлопка хлопушки в файле (`clapper.py`).
+3. Если хлопок найден — обрезка аудио сразу после него (`cutter.py`). Если хлопок не обнаружен — транскрипция выполняется на полной длине аудиофайла.
+4. Распознавание речи на основе полученного аудиофрагмента (`whisper.py`).
+5. Извлечение структурированной сцены и дубля через LLM (`scene_parser.py`).
+
+Запуск пайплайна:
+```bash
+# запуск с красивым текстовым выводом всей метаинформации
+uv run python pipeline.py claps/тест.wav
+
+# вывод результатов в формате JSON
+uv run python pipeline.py claps/тест.wav --json
+
+# запуск с сохранением отчета в файл (создаст claps/тест_result.json)
+uv run python pipeline.py claps/тест.wav --save
+```
+
+---
+
 ## Тесты
 
 Все тесты работают на моках — **скачивание моделей не требуется**.
@@ -140,6 +189,12 @@ uv run pytest tests/test_preprocessor.py -v
 
 # только тесты cutter
 uv run pytest tests/test_cutter.py -v
+
+# только тесты scene_parser
+uv run pytest tests/test_scene_parser.py -v
+
+# только тесты pipeline
+uv run pytest tests/test_pipeline.py -v
 ```
 
 ### Что покрыто тестами
@@ -150,6 +205,8 @@ uv run pytest tests/test_cutter.py -v
 | `whisper.py` | `tests/test_whisper.py` | загрузка конфига, транскрибация через StandardizedAudio и CutterResult |
 | `preprocessor.py` | `tests/test_preprocessor.py` | загрузка конфига, standardize_audio, decode_standardized_audio |
 | `cutter.py` | `tests/test_cutter.py` | выбор лучшего хита, обрезка через ffmpeg, ошибка на пустых хитах |
+| `scene_parser.py` | `tests/test_scene_parser.py` | загрузка конфига, Pydantic-валидация, parse_scene с моками, CLI |
+| `pipeline.py` | `tests/test_pipeline.py` | сквозной пайплайн с моками (с хлопками и без), CLI, сохранение результатов |
 
 ---
 
@@ -161,17 +218,23 @@ uv run pytest tests/test_cutter.py -v
 ├── whisper.py           # Транскрибация речи (Whisper)
 ├── preprocessor.py      # Стандартизация аудио → AAC in-memory
 ├── cutter.py            # Обрезка аудио по метке хлопушки
+├── scene_parser.py      # Извлечение сцены и дубля через LLM
+├── pipeline.py          # Сквозной оркестратор пайплайна
 ├── config.yaml          # Единый конфиг для всех модулей
-├── .env                 # HF-токен (не коммитится)
+├── .env                 # Настройки ключей API (не коммитится)
 ├── pyproject.toml       # Зависимости (uv)
 ├── uv.lock
 ├── claps/               # Тестовые аудиофайлы
+├── prompts/             # Шаблоны промптов для LLM
+│   └── scene_parser.md  # Промпт для извлечения сцены/дубля
 └── tests/
     ├── conftest.py
     ├── test_clapper.py
     ├── test_cutter.py
     ├── test_preprocessor.py
-    └── test_whisper.py
+    ├── test_whisper.py
+    ├── test_scene_parser.py
+    └── test_pipeline.py
 ```
 
 ---

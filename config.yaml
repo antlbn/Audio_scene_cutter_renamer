@@ -60,3 +60,22 @@ whisper:
   task: transcribe
   # Keep timestamps available for downstream parsing.
   return_timestamps: true
+
+scene_parser:
+  # OpenRouter model to use for scene/take extraction.
+  model: google/gemini-3.1-flash-lite
+  # OpenAI-compatible API endpoint.
+  api_base: https://openrouter.ai/api/v1
+  # Name of the environment variable holding the API key.
+  api_key_env: OPENROUTER_API_KEY
+  # Path to the prompt template file.
+  prompt_path: prompts/scene_parser.md
+  # LLM temperature (0 = deterministic).
+  temperature: 0.0
+  # Max tokens in the LLM response.
+  max_tokens: 256
+  # Instruction/description for the scene field to guide the LLM format.
+  scene_description: "Full scene description (e.g. 'сцена тридцать два', 'сцена 3B')"
+  # Instruction/description for the take field to guide the LLM format.
+  take_description: "The take number (e.g. 1, 2, 3)"
+
