@@ -36,3 +36,17 @@ clapper:
   clip:
     # Number of seconds to keep after the strongest clapper hit.
     post_hit_seconds: 2.0
+
+whisper:
+  # Local Whisper checkpoint used for speech-to-text.
+  model_id: openai/whisper-small
+  # Keep Whisper downloads inside the project tree by default.
+  cache_dir: .cache/whisper
+  # "auto" uses CUDA if available, otherwise CPU.
+  device: auto
+  # Default transcription language from the notebook experiments.
+  language: ru
+  # Whisper task used by default in the notebook.
+  task: transcribe
+  # Keep timestamps available for downstream parsing.
+  return_timestamps: true

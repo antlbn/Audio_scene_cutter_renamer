@@ -18,7 +18,7 @@ WHISPER_SAMPLE_RATE = 16_000
 
 
 @dataclass(slots=True)
-class ClapperClipResult:
+class CutterResult:
     """In-memory trimmed audio derived from a clapper detection result."""
 
     clapper_result: clapper.ClapperResult
@@ -32,7 +32,7 @@ class ClapperClipResult:
 
 def _select_best_hit(result: clapper.ClapperResult) -> clapper.ClapperHit:
     if not result.best_scores:
-        print("[clip] no timestamps were found in ClapperResult.best_scores", file=sys.stderr)
+        print("[cutter] no timestamps were found in ClapperResult.best_scores", file=sys.stderr)
         raise ValueError("No timestamps were found in ClapperResult.best_scores")
 
     return max(result.best_scores, key=lambda hit: (float(hit.score), -float(hit.timestamp)))
@@ -78,11 +78,11 @@ def _decode_ffmpeg_pcm(stdout: bytes) -> torch.Tensor:
     return torch.from_numpy(samples)
 
 
-def clip_audio_by_clapper(
+def cut_audio_by_clapper(
     audio_path: str | Path,
     clapper_result: clapper.ClapperResult,
     config: clapper.ClapperConfig | None = None,
-) -> ClapperClipResult:
+) -> CutterResult:
     """Trim the source audio after the strongest clapper hit and keep it in memory."""
 
     config = config or clapper.load_config()
@@ -91,9 +91,7 @@ def clip_audio_by_clapper(
     source_duration_seconds = _load_source_duration_seconds(audio_path)
     clip_start_seconds = max(0.0, float(best_hit.timestamp))
     if clip_start_seconds >= source_duration_seconds:
-        raise ValueError(
-            "Best clapper timestamp is at or beyond the source audio duration"
-        )
+        raise ValueError("Best clapper timestamp is at or beyond the source audio duration")
 
     clip_end_seconds = min(
         source_duration_seconds,
@@ -103,15 +101,15 @@ def clip_audio_by_clapper(
     if clip_duration_seconds <= 0:
         raise ValueError("Computed clip duration is empty")
 
-    ffmpeg_cmd = _build_ffmpeg_trim_command(audio_path, clip_start_seconds, clip_duration_seconds)
     if shutil.which("ffmpeg") is None:
         raise RuntimeError("ffmpeg is required to trim audio in memory")
 
+    ffmpeg_cmd = _build_ffmpeg_trim_command(audio_path, clip_start_seconds, clip_duration_seconds)
     proc = subprocess.run(ffmpeg_cmd, check=True, capture_output=True)
     audio = _decode_ffmpeg_pcm(proc.stdout)
     duration_seconds = float(audio.numel()) / float(WHISPER_SAMPLE_RATE)
 
-    return ClapperClipResult(
+    return CutterResult(
         clapper_result=clapper_result,
         best_hit=best_hit,
         audio=audio,
@@ -120,3 +118,8 @@ def clip_audio_by_clapper(
         clip_start_seconds=round(clip_start_seconds, 6),
         clip_end_seconds=round(clip_end_seconds, 6),
     )
+
+
+# Backwards-compatible aliases for earlier drafts of the module name.
+ClapperClipResult = CutterResult
+clip_audio_by_clapper = cut_audio_by_clapper

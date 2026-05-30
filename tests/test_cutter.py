@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import torch
 
 import clapper
-import clip_by_clapper
+import cutter
 
 
 def _make_clip_result() -> clapper.ClapperResult:
@@ -33,14 +33,14 @@ def _make_clip_result() -> clapper.ClapperResult:
     )
 
 
-def test_clip_audio_by_clapper_uses_best_hit_and_returns_in_memory_audio(monkeypatch):
+def test_cut_audio_by_clapper_uses_best_hit_and_returns_in_memory_audio(monkeypatch):
     result = _make_clip_result()
     config = clapper.ClapperConfig(
         clip=clapper.ClipConfig(post_hit_seconds=2.0),
     )
 
     monkeypatch.setattr(
-        clip_by_clapper.clapper,
+        cutter.clapper,
         "_load_audio",
         lambda audio_path: (torch.zeros(40, dtype=torch.float32), 10),
     )
@@ -52,10 +52,10 @@ def test_clip_audio_by_clapper_uses_best_hit_and_returns_in_memory_audio(monkeyp
         samples = np.linspace(-1.0, 1.0, 12, dtype=np.float32).astype("<f4")
         return SimpleNamespace(stdout=samples.tobytes())
 
-    monkeypatch.setattr(clip_by_clapper.shutil, "which", lambda name: "/usr/bin/ffmpeg")
-    monkeypatch.setattr(clip_by_clapper.subprocess, "run", fake_run)
+    monkeypatch.setattr(cutter.shutil, "which", lambda name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr(cutter.subprocess, "run", fake_run)
 
-    clipped = clip_by_clapper.clip_audio_by_clapper(Path("input.wav"), result, config)
+    clipped = cutter.cut_audio_by_clapper(Path("input.wav"), result, config)
 
     assert clipped.clapper_result is result
     assert clipped.best_hit.timestamp == 3.2
@@ -73,7 +73,7 @@ def test_clip_audio_by_clapper_uses_best_hit_and_returns_in_memory_audio(monkeyp
     assert cmd[cmd.index("-ar") + 1] == "16000"
 
 
-def test_clip_audio_by_clapper_prints_and_raises_on_empty_hits(capsys):
+def test_cut_audio_by_clapper_prints_and_raises_on_empty_hits(capsys):
     result = clapper.ClapperResult(
         file_name="input.wav",
         best_scores=[],
@@ -82,7 +82,7 @@ def test_clip_audio_by_clapper_prints_and_raises_on_empty_hits(capsys):
     )
 
     with pytest.raises(ValueError, match="No timestamps were found"):
-        clip_by_clapper._select_best_hit(result)
+        cutter._select_best_hit(result)
 
     captured = capsys.readouterr()
     assert "no timestamps were found" in captured.err.lower()
