@@ -1,0 +1,19 @@
+[project]
+name = "audio-scene-cutter-renamer"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "datasets",
+  "ipywidgets",
+  "numpy<2",
+  "pyyaml",
+  "pytest",
+  "soundfile",
+  "torch==2.2.2",
+  "torchaudio==2.2.2",
+  "transformers<5",
+  "ipykernel",
+]
+
+[tool.uv]
+package = false

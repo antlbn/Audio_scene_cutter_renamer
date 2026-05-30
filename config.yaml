@@ -1,0 +1,34 @@
+clapper:
+  audio_model:
+    # Hugging Face CLAP checkpoint used for audio/text similarity.
+    model_name: laion/clap-htsat-fused
+    # Keep the downloaded model inside the project tree by default.
+    cache_dir: .cache/clap
+    # Audio windows are resampled to this rate before inference.
+    target_sample_rate: 48000
+    # Window size in seconds for sliding CLAP inference.
+    window_seconds: 1.0
+    # Hop size in seconds between windows.
+    hop_seconds: 0.5
+    # Minimum similarity score required to keep a window as a hit.
+    threshold: 0.30
+    # "auto" uses CUDA if available, otherwise CPU.
+    device: auto
+
+  text_search:
+    # Keep the top N text matches for each detected point.
+    top_n: 3
+    # Progress output can be disabled later when more modules are added.
+    show_progress: true
+    # Default text keys used to compare against the audio windows.
+    text_keys:
+      - clapper board snap
+      - sharp clap sound
+      - loud click
+      - film slate clap
+      - clap noise
+      - clapperboard closing
+      - slate snap
+      - production clap
+      - sharp film clap
+      - clapper strike
