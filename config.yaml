@@ -37,6 +37,16 @@ clapper:
     # Number of seconds to keep after the strongest clapper hit.
     post_hit_seconds: 2.0
 
+preprocessor:
+  # All pipeline inputs are standardized to AAC in memory at this rate.
+  sample_rate: 16000
+  # Shared pipeline contract is mono.
+  channels: 1
+  # AAC keeps the intermediate contract compact and pipe-friendly.
+  codec: aac
+  # Roadmap default for the encoded AAC bitrate.
+  bitrate: 320k
+
 whisper:
   # Local Whisper checkpoint used for speech-to-text.
   model_id: openai/whisper-small
@@ -45,7 +55,7 @@ whisper:
   # "auto" uses CUDA if available, otherwise CPU.
   device: auto
   # Default transcription language from the notebook experiments.
-  language: ru
+  language: french
   # Whisper task used by default in the notebook.
   task: transcribe
   # Keep timestamps available for downstream parsing.

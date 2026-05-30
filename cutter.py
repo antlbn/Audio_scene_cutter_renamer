@@ -1,4 +1,4 @@
-"""Trim an audio file in memory using the strongest clapper hit."""
+"""Trim standardized in-memory AAC audio using the strongest clapper hit."""
 
 from __future__ import annotations
 
@@ -8,23 +8,17 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-import numpy as np
-import torch
-
 import clapper
-
-
-WHISPER_SAMPLE_RATE = 16_000
+import preprocessor
 
 
 @dataclass(slots=True)
 class CutterResult:
-    """In-memory trimmed audio derived from a clapper detection result."""
+    """Trimmed standardized audio derived from a clapper detection result."""
 
     clapper_result: clapper.ClapperResult
     best_hit: clapper.ClapperHit
-    audio: torch.Tensor
-    sample_rate: int
+    standardized_audio: preprocessor.StandardizedAudio
     duration_seconds: float
     clip_start_seconds: float
     clip_end_seconds: float
@@ -38,14 +32,7 @@ def _select_best_hit(result: clapper.ClapperResult) -> clapper.ClapperHit:
     return max(result.best_scores, key=lambda hit: (float(hit.score), -float(hit.timestamp)))
 
 
-def _load_source_duration_seconds(audio_path: str | Path) -> float:
-    waveform, sample_rate = clapper._load_audio(audio_path)
-    if sample_rate <= 0:
-        raise ValueError(f"Invalid sample rate for {audio_path}: {sample_rate}")
-    return float(len(waveform)) / float(sample_rate)
-
-
-def _build_ffmpeg_trim_command(audio_path: str | Path, start_seconds: float, duration_seconds: float) -> list[str]:
+def _build_ffmpeg_trim_command(audio: preprocessor.StandardizedAudio, start_seconds: float, duration_seconds: float) -> list[str]:
     return [
         "ffmpeg",
         "-v",
@@ -55,40 +42,50 @@ def _build_ffmpeg_trim_command(audio_path: str | Path, start_seconds: float, dur
         "-t",
         f"{duration_seconds:.6f}",
         "-i",
-        str(audio_path),
+        "pipe:0",
         "-ac",
-        "1",
+        str(audio.channels),
         "-ar",
-        str(WHISPER_SAMPLE_RATE),
+        str(audio.sample_rate),
+        "-c:a",
+        "aac",
+        "-b:a",
+        "320k",
         "-f",
-        "f32le",
-        "-acodec",
-        "pcm_f32le",
+        "adts",
         "pipe:1",
     ]
 
 
-def _decode_ffmpeg_pcm(stdout: bytes) -> torch.Tensor:
-    if not stdout:
-        raise ValueError("ffmpeg returned no audio data for the requested clip")
+def _encode_trimmed_audio(
+    audio: preprocessor.StandardizedAudio,
+    start_seconds: float,
+    duration_seconds: float,
+) -> bytes:
+    if shutil.which("ffmpeg") is None:
+        raise RuntimeError("ffmpeg is required to trim audio in memory")
 
-    samples = np.frombuffer(stdout, dtype="<f4").copy()
-    if samples.size == 0:
-        raise ValueError("ffmpeg returned an empty audio clip")
-    return torch.from_numpy(samples)
+    ffmpeg_cmd = _build_ffmpeg_trim_command(audio, start_seconds, duration_seconds)
+    proc = subprocess.run(ffmpeg_cmd, check=True, capture_output=True, input=audio.payload)
+    return proc.stdout
 
 
 def cut_audio_by_clapper(
-    audio_path: str | Path,
+    audio_source: preprocessor.StandardizedAudio | str | Path,
     clapper_result: clapper.ClapperResult,
     config: clapper.ClapperConfig | None = None,
 ) -> CutterResult:
     """Trim the source audio after the strongest clapper hit and keep it in memory."""
 
     config = config or clapper.load_config()
+    if isinstance(audio_source, (str, Path)):
+        standardized_audio = preprocessor.standardize_audio(audio_source)
+    else:
+        standardized_audio = audio_source
+
     best_hit = _select_best_hit(clapper_result)
 
-    source_duration_seconds = _load_source_duration_seconds(audio_path)
+    source_duration_seconds = standardized_audio.duration_seconds
     clip_start_seconds = max(0.0, float(best_hit.timestamp))
     if clip_start_seconds >= source_duration_seconds:
         raise ValueError("Best clapper timestamp is at or beyond the source audio duration")
@@ -101,20 +98,21 @@ def cut_audio_by_clapper(
     if clip_duration_seconds <= 0:
         raise ValueError("Computed clip duration is empty")
 
-    if shutil.which("ffmpeg") is None:
-        raise RuntimeError("ffmpeg is required to trim audio in memory")
-
-    ffmpeg_cmd = _build_ffmpeg_trim_command(audio_path, clip_start_seconds, clip_duration_seconds)
-    proc = subprocess.run(ffmpeg_cmd, check=True, capture_output=True)
-    audio = _decode_ffmpeg_pcm(proc.stdout)
-    duration_seconds = float(audio.numel()) / float(WHISPER_SAMPLE_RATE)
+    payload = _encode_trimmed_audio(standardized_audio, clip_start_seconds, clip_duration_seconds)
+    clipped_audio = preprocessor.StandardizedAudio(
+        file_name=standardized_audio.file_name,
+        payload=payload,
+        codec=standardized_audio.codec,
+        sample_rate=standardized_audio.sample_rate,
+        channels=standardized_audio.channels,
+        duration_seconds=clip_duration_seconds,
+    )
 
     return CutterResult(
         clapper_result=clapper_result,
         best_hit=best_hit,
-        audio=audio,
-        sample_rate=WHISPER_SAMPLE_RATE,
-        duration_seconds=duration_seconds,
+        standardized_audio=clipped_audio,
+        duration_seconds=clip_duration_seconds,
         clip_start_seconds=round(clip_start_seconds, 6),
         clip_end_seconds=round(clip_end_seconds, 6),
     )

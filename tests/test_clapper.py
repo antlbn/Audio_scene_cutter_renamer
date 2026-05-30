@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import torch
 
 import clapper
+import preprocessor
 
 
 class FakeProcessor:
@@ -65,7 +67,7 @@ def test_select_top_matches_filters_below_threshold():
     assert [round(item.score, 3) for item in matches] == [0.9]
 
 
-def test_analyze_audio_filters_by_threshold_and_keeps_top_matches(monkeypatch):
+def test_analyze_audio_uses_standardized_audio(monkeypatch):
     config = clapper.ClapperConfig(
         audio_model=clapper.AudioModelConfig(
             threshold=0.85,
@@ -99,15 +101,24 @@ def test_analyze_audio_filters_by_threshold_and_keeps_top_matches(monkeypatch):
         cache_dir=Path(".cache/clap"),
     )
 
-    monkeypatch.setattr(
-        clapper,
-        "_load_audio",
-        lambda audio_path: (torch.zeros(6, dtype=torch.float32), 4),
+    standardized = preprocessor.StandardizedAudio(
+        file_name="sample.aac",
+        payload=b"aac-bytes",
+        codec="aac",
+        sample_rate=16_000,
+        channels=1,
+        duration_seconds=1.5,
     )
 
-    result = clapper.analyze_audio("sample.wav", config, fake_runtime, debug=True)
+    monkeypatch.setattr(
+        clapper.preprocessor,
+        "decode_standardized_audio",
+        lambda audio, target_sample_rate: (torch.zeros(6, dtype=torch.float32), target_sample_rate),
+    )
 
-    assert result.file_name == "sample.wav"
+    result = clapper.analyze_audio(standardized, config, fake_runtime, debug=True)
+
+    assert result.file_name == "sample.aac"
     assert result.threshold == 0.85
     assert result.num_points == 2
     assert [hit.text_key for hit in result.best_scores] == ["first", "second"]
@@ -116,7 +127,7 @@ def test_analyze_audio_filters_by_threshold_and_keeps_top_matches(monkeypatch):
 
 def test_main_uses_cli_result_without_real_model(monkeypatch, tmp_path: Path, capsys):
     expected = clapper.ClapperResult(
-        file_name="input.wav",
+        file_name="input.aac",
         best_scores=[],
         num_points=0,
         threshold=0.1,
@@ -127,18 +138,18 @@ def test_main_uses_cli_result_without_real_model(monkeypatch, tmp_path: Path, ca
     config_path = tmp_path / "config.yaml"
     config_path.write_text("clapper: {}\n")
 
-    exit_code = clapper.main(["input.wav", "--config", str(config_path), "--debug", "--json"])
+    exit_code = clapper.main(["input.aac", "--config", str(config_path), "--debug", "--json"])
     out = capsys.readouterr().out
 
     assert exit_code == 0
     payload = json.loads(out.strip().splitlines()[-1])
-    assert payload["file_name"] == "input.wav"
+    assert payload["file_name"] == "input.aac"
     assert payload["num_points"] == 0
 
 
 def test_render_result_is_human_readable():
     result = clapper.ClapperResult(
-        file_name="input.wav",
+        file_name="input.aac",
         best_scores=[
             clapper.ClapperHit(
                 timestamp=1.25,
@@ -157,7 +168,7 @@ def test_render_result_is_human_readable():
     rendered = clapper.render_result(result)
 
     assert "🎬 Clapper summary" in rendered
-    assert "📁 File: input.wav" in rendered
+    assert "📁 File: input.aac" in rendered
     assert "🎯 Hits: 1" in rendered
     assert "⏱ 1.25s" in rendered
     assert "sharp clap sound 0.420" in rendered

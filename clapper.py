@@ -28,6 +28,8 @@ import torch
 import torchaudio
 import yaml
 
+import preprocessor
+
 LOGGER = logging.getLogger("clapper")
 
 DEFAULT_MODEL_NAME = "laion/clap-htsat-fused"
@@ -411,21 +413,24 @@ def _build_hit(
 
 
 def _prepare_audio_windows(
-    audio_path: str | Path,
+    audio_source: str | Path | preprocessor.StandardizedAudio,
     config: ClapperConfig,
 ) -> tuple[Path, torch.Tensor, int, int, list[int]]:
-    """Load the file, resample if needed, and build the sliding window plan."""
+    """Load standardized audio, resample if needed, and build the sliding window plan."""
 
-    audio_path = Path(audio_path)
-    waveform, sample_rate = _load_audio(audio_path)
-
-    if sample_rate != config.audio_model.target_sample_rate:
-        waveform = torchaudio.functional.resample(
-            waveform,
-            sample_rate,
-            config.audio_model.target_sample_rate,
+    if isinstance(audio_source, preprocessor.StandardizedAudio):
+        audio_path = Path(audio_source.file_name)
+        waveform, sample_rate = preprocessor.decode_standardized_audio(
+            audio_source,
+            target_sample_rate=config.audio_model.target_sample_rate,
         )
-        sample_rate = config.audio_model.target_sample_rate
+    else:
+        audio_path = Path(audio_source)
+        standardized = preprocessor.standardize_audio(audio_path)
+        waveform, sample_rate = preprocessor.decode_standardized_audio(
+            standardized,
+            target_sample_rate=config.audio_model.target_sample_rate,
+        )
 
     window_size = max(1, int(round(config.audio_model.window_seconds * sample_rate)))
     hop_size = max(1, int(round(config.audio_model.hop_seconds * sample_rate)))
@@ -521,7 +526,7 @@ def _print_debug_hit(hit: ClapperHit) -> None:
 
 
 def analyze_audio(
-    audio_path: str | Path,
+    audio_source: str | Path | preprocessor.StandardizedAudio,
     config: ClapperConfig,
     runtime: ClapperRuntime,
     *,
@@ -530,7 +535,7 @@ def analyze_audio(
     """Run CLAP similarity search over one audio file."""
 
     audio_path, waveform, sample_rate, window_size, window_starts = _prepare_audio_windows(
-        audio_path,
+        audio_source,
         config,
     )
     total_windows = len(window_starts)
@@ -582,7 +587,7 @@ def analyze_audio(
 
 
 def detect_clapper(
-    audio_path: str | Path,
+    audio_source: str | Path | preprocessor.StandardizedAudio,
     *,
     config_path: str | Path | None = None,
     debug: bool = False,
@@ -591,7 +596,7 @@ def detect_clapper(
 
     config = load_config(config_path)
     runtime = load_runtime(config)
-    return analyze_audio(audio_path, config, runtime, debug=debug)
+    return analyze_audio(audio_source, config, runtime, debug=debug)
 
 
 def render_result(result: ClapperResult) -> str:

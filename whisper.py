@@ -10,14 +10,12 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import torch
-import torchaudio
 import yaml
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
-import clapper
 import cutter
+import preprocessor
 
 
 LOGGER = logging.getLogger("whisper")
@@ -43,6 +41,14 @@ class WhisperConfig:
 
 
 @dataclass(slots=True)
+class WhisperDetection:
+    """Minimal Whisper output intended for the LLM stage."""
+
+    text: str
+    model_id: str
+
+
+@dataclass(slots=True)
 class WhisperChunk:
     """One timestamped segment returned by Whisper."""
 
@@ -55,9 +61,8 @@ class WhisperResult:
     """Normalized transcription result ready for JSON export."""
 
     file_name: str
-    text: str
+    detection: WhisperDetection
     chunks: list[WhisperChunk]
-    model_id: str
     language: str
     task: str
     sample_rate: int
@@ -153,35 +158,7 @@ def _load_env_file(env_path: Path) -> None:
         key = key.strip()
         value = value.strip().strip('"').strip("'")
         if key and key not in os.environ:
-            # Whisper is only used locally, so we keep env parsing tiny.
             os.environ[key] = value
-
-
-def _prepare_audio_array(source: str | Path | cutter.CutterResult) -> tuple[str, np.ndarray, int]:
-    if isinstance(source, cutter.CutterResult):
-        file_name = source.clapper_result.file_name
-        waveform = source.audio.detach().cpu().float()
-        sample_rate = int(source.sample_rate)
-    else:
-        audio_path = Path(source)
-        file_name = audio_path.name
-        waveform, sample_rate = clapper._load_audio(audio_path)
-        waveform = waveform.float()
-
-    if waveform.ndim != 1:
-        waveform = waveform.reshape(-1)
-    if waveform.numel() == 0:
-        raise ValueError(f"Audio source is empty: {file_name}")
-
-    if sample_rate != 16_000:
-        waveform = torchaudio.functional.resample(
-            waveform,
-            orig_freq=sample_rate,
-            new_freq=16_000,
-        )
-        sample_rate = 16_000
-
-    return file_name, waveform.detach().cpu().numpy().astype(np.float32, copy=False), sample_rate
 
 
 def _normalize_timestamp(value: Any) -> tuple[float | None, float | None] | None:
@@ -254,8 +231,18 @@ def load_runtime(config: WhisperConfig, *, cache_base_dir: Path | None = None) -
     return runtime
 
 
+def _standardize_source(
+    source: str | Path | preprocessor.StandardizedAudio | cutter.CutterResult,
+) -> preprocessor.StandardizedAudio:
+    if isinstance(source, preprocessor.StandardizedAudio):
+        return source
+    if isinstance(source, cutter.CutterResult):
+        return source.standardized_audio
+    return preprocessor.standardize_audio(source)
+
+
 def transcribe_audio(
-    source: str | Path | cutter.CutterResult,
+    source: str | Path | preprocessor.StandardizedAudio | cutter.CutterResult,
     config: WhisperConfig | None = None,
     runtime: WhisperRuntime | None = None,
 ) -> WhisperResult:
@@ -264,7 +251,12 @@ def transcribe_audio(
     config = config or load_config()
     runtime = runtime or load_runtime(config)
 
-    file_name, audio_array, sample_rate = _prepare_audio_array(source)
+    standardized_audio = _standardize_source(source)
+    waveform, sample_rate = preprocessor.decode_standardized_audio(
+        standardized_audio,
+        target_sample_rate=16_000,
+    )
+    audio_array = waveform.detach().cpu().numpy()
     raw_result = runtime.asr_pipeline(
         {"array": audio_array, "sampling_rate": sample_rate},
         return_timestamps=config.return_timestamps,
@@ -277,10 +269,9 @@ def transcribe_audio(
     text = str(raw_result.get("text", ""))
     chunks = _normalize_chunks(raw_result.get("chunks"))
     return WhisperResult(
-        file_name=file_name,
-        text=text,
+        file_name=standardized_audio.file_name,
+        detection=WhisperDetection(text=text, model_id=config.model_id),
         chunks=chunks,
-        model_id=config.model_id,
         language=config.language,
         task=config.task,
         sample_rate=sample_rate,
@@ -293,11 +284,11 @@ def render_result(result: WhisperResult) -> str:
     lines = [
         "🗣 Whisper summary",
         f"📁 File: {result.file_name}",
-        f"🧠 Model: {result.model_id}",
+        f"🧠 Model: {result.detection.model_id}",
         f"🌐 Language: {result.language}",
         f"🧾 Task: {result.task}",
         f"🕒 Sample rate: {result.sample_rate}",
-        f"📝 Text: {result.text}",
+        f"📝 Text: {result.detection.text}",
     ]
     if not result.chunks:
         lines.append("🙈 No timestamp chunks returned")

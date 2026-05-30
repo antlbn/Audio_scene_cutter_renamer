@@ -1,0 +1,4 @@
+#!/bin/bash
+#My first bash script
+pwd
+whoami
