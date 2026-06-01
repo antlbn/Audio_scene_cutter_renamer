@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import settings
@@ -56,3 +57,100 @@ def test_save_whisper_settings_creates_missing_whisper_section(tmp_path: Path):
     assert updated["whisper"]["language"] == "fr"
     assert updated["whisper"]["task"] == "transcribe"
     assert updated["whisper"]["model_id"] == "openai/whisper-small"
+
+
+def test_save_whisper_settings_preserves_inline_comment_and_nested_section(tmp_path: Path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+whisper:
+  language: fr
+scene_parser: # inline comment
+  model: google/gemini-3.1-flash-lite
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    settings.save_whisper_settings(
+        config_path,
+        language="en",
+        task="translate",
+        model_id="openai/whisper-small",
+    )
+
+    updated = settings.load_config_data(config_path)
+    assert updated["whisper"]["language"] == "en"
+    assert updated["whisper"]["task"] == "translate"
+    assert updated["whisper"]["model_id"] == "openai/whisper-small"
+    assert updated["scene_parser"]["model"] == "google/gemini-3.1-flash-lite"
+    updated_text = config_path.read_text(encoding="utf-8")
+    assert "scene_parser: # inline comment" in updated_text
+
+
+def test_empty_whisper_section_is_treated_as_defaults(tmp_path: Path, monkeypatch):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("whisper:\n", encoding="utf-8")
+    calls = []
+
+    class FakePrompt:
+        def __init__(self, value):
+            self.value = value
+
+        def execute(self):
+            return self.value
+
+    class FakeInquirer:
+        def select(self, **kwargs):
+            calls.append(kwargs)
+            return FakePrompt(settings.MENU_DONE)
+
+    monkeypatch.setitem(sys.modules, "InquirerPy", type("FakeModule", (), {"inquirer": FakeInquirer()}))
+
+    assert settings.run_settings_ui(config_path) == 0
+    updated = settings.load_config_data(config_path)
+    assert updated["whisper"]["language"] == "french"
+    assert updated["whisper"]["task"] == "transcribe"
+    assert updated["whisper"]["model_id"] == "openai/whisper-small"
+
+
+def test_build_settings_menu_choices_shows_current_values():
+    choices = settings.build_settings_menu_choices(
+        language="french",
+        task="transcribe",
+        model_id="openai/whisper-small",
+    )
+
+    assert choices == [
+        {"name": "Whisper language: french", "value": settings.MENU_LANGUAGE},
+        {"name": "Whisper mode: transcribe", "value": settings.MENU_TASK},
+        {"name": "Whisper model: openai/whisper-small", "value": settings.MENU_MODEL},
+        {"name": "Done / Save", "value": settings.MENU_DONE},
+    ]
+
+
+def test_select_menu_item_uses_clean_prompt(monkeypatch):
+    calls = []
+
+    class FakePrompt:
+        def execute(self):
+            return "done"
+
+    class FakeInquirer:
+        def select(self, **kwargs):
+            calls.append(kwargs)
+            return FakePrompt()
+
+    monkeypatch.setattr(settings, "clear_terminal", lambda: calls.append({"clear": True}))
+
+    result = settings.select_menu_item(
+        FakeInquirer(),
+        message="Settings",
+        choices=[{"name": "Done / Save", "value": "done"}],
+        default="done",
+    )
+
+    assert result == "done"
+    assert calls[0] == {"clear": True}
+    assert calls[1]["qmark"] == ""
+    assert calls[1]["amark"] == ""
+    assert calls[1]["pointer"] == ">"

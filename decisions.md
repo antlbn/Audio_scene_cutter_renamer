@@ -7,13 +7,19 @@
 закрывает только один основной use case пайплайна и редактирует секцию
 `whisper` в `config.yaml`.
 
-- `cinema_clapboard -settings` открывает терминальный UI на InquirerPy.
+- `cinema_clapboard -settings` открывает терминальный UI на InquirerPy: сначала
+  главное меню настроек, внутри можно менять отдельные пункты, в конце
+  `Done / Save`.
 - В первом этапе доступны только:
   - язык аудиодорожки для Whisper (`whisper.language`);
   - режим Whisper: `transcribe` или `translate` (`whisper.task`);
   - локальная модель Whisper (`whisper.model_id`).
 - Bash-wrapper больше не принимает флаги языка. Язык выбирается через settings и
   хранится в конфиге.
+- Settings UI редактирует тот же `config.yaml`, потому что один хорошо
+  прокомментированный конфиг проще для пользователя. Для записи используется
+  round-trip YAML parser (`ruamel.yaml`), а не ручная правка строк, чтобы не
+  плодить костыли и сохранять комментарии.
 - Python CLI (`pipeline.py`, `whisper.py`) пока оставляет `--language` и `--task`
   как dev/debug override, но пользовательский путь через wrapper идет от
   `config.yaml`.
