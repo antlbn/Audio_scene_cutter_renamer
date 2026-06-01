@@ -1,8 +1,10 @@
 .env
+.DS_Store
 .cache/
 .venv/
 .uv-cache/
 __pycache__/
+*.py[cod]
 .ipynb_checkpoints/
 .pytest_cache/
 claps
