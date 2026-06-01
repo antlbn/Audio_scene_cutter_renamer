@@ -124,6 +124,7 @@ def test_build_settings_menu_choices_shows_current_values():
         {"name": "Whisper language: french", "value": settings.MENU_LANGUAGE},
         {"name": "Whisper mode: transcribe", "value": settings.MENU_TASK},
         {"name": "Whisper model: openai/whisper-small", "value": settings.MENU_MODEL},
+        {"name": "Delete downloaded Whisper weights", "value": settings.MENU_DELETE_WEIGHTS},
         {"name": "Done / Save", "value": settings.MENU_DONE},
     ]
 
@@ -154,3 +155,58 @@ def test_select_menu_item_uses_clean_prompt(monkeypatch):
     assert calls[1]["qmark"] == ""
     assert calls[1]["amark"] == ""
     assert calls[1]["pointer"] == ">"
+
+
+def test_list_cached_whisper_models_reads_hugging_face_cache_dirs(tmp_path: Path):
+    cache_dir = tmp_path / "whisper"
+    model_dir = cache_dir / "models--openai--whisper-small"
+    model_dir.mkdir(parents=True)
+    (model_dir / "weights.bin").write_bytes(b"1234")
+    (cache_dir / ".locks" / "models--openai--whisper-small").mkdir(parents=True)
+    (cache_dir / "unrelated").mkdir()
+
+    models = settings.list_cached_whisper_models(cache_dir)
+
+    assert models == [
+        settings.CachedWhisperModel(
+            path=model_dir,
+            size_bytes=4,
+        )
+    ]
+
+
+def test_delete_cached_whisper_model_removes_model_and_lock_dirs(tmp_path: Path):
+    cache_dir = tmp_path / "whisper"
+    model_dir = cache_dir / "models--openai--whisper-small"
+    lock_dir = cache_dir / ".locks" / "models--openai--whisper-small"
+    model_dir.mkdir(parents=True)
+    lock_dir.mkdir(parents=True)
+
+    model = settings.CachedWhisperModel(
+        path=model_dir,
+        size_bytes=0,
+    )
+
+    settings.delete_cached_whisper_model(model, cache_dir)
+
+    assert not model_dir.exists()
+    assert not lock_dir.exists()
+
+
+def test_delete_cached_whisper_model_refuses_outside_cache(tmp_path: Path):
+    cache_dir = tmp_path / "whisper"
+    outside_dir = tmp_path / "outside"
+    cache_dir.mkdir()
+    outside_dir.mkdir()
+
+    model = settings.CachedWhisperModel(
+        path=outside_dir,
+        size_bytes=0,
+    )
+
+    try:
+        settings.delete_cached_whisper_model(model, cache_dir)
+    except ValueError as exc:
+        assert "outside cache directory" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")

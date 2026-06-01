@@ -14,6 +14,8 @@
   - язык аудиодорожки для Whisper (`whisper.language`);
   - режим Whisper: `transcribe` или `translate` (`whisper.task`);
   - локальная модель Whisper (`whisper.model_id`).
+  - просмотр и удаление локально скачанных весов Whisper из `whisper.cache_dir`
+    через отдельный пункт меню с подтверждением.
 - Bash-wrapper больше не принимает флаги языка. Язык выбирается через settings и
   хранится в конфиге.
 - Settings UI редактирует тот же `config.yaml`, потому что один хорошо
