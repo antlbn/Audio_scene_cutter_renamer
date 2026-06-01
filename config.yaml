@@ -55,7 +55,7 @@ whisper:
   # "auto" uses CUDA if available, otherwise CPU.
   device: auto
   # Default transcription language from the notebook experiments.
-  language: english
+  language: french
   # Whisper task used by default in the notebook.
   task: transcribe
   # Keep timestamps available for downstream parsing.
@@ -84,5 +84,6 @@ scene_parser:
 renamer:
   # The naming template for renamed files. Supported placeholders:
   # {sequence}, {shot}, {take}
-  naming_template: "Sequence_{sequence}_shot_{shot}_take_{take}"
-
+  naming_template: "Sequence_{sequence}_shot_{shot}_кадр_{take}"
+  # Suffix appended to the rendered filename as-is.
+  suffix: "Hui"

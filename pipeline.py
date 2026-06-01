@@ -25,30 +25,47 @@ import scene_parser
 import whisper
 
 LOGGER = logging.getLogger("pipeline")
+DEFAULT_RENAMER_TEMPLATE = "Sequence_{sequence}_shot_{shot}_take_{take}"
+DEFAULT_RENAMER_SUFFIX = ""
 
 
-def load_renamer_template(config_path: str | Path | None = None) -> str:
+def load_renamer_config(config_path: str | Path | None = None) -> dict[str, str]:
     config_file = Path(config_path) if config_path is not None else Path("config.yaml")
-    default_template = "Sequence_{sequence}_shot_{shot}_take_{take}"
+    default_config = {
+        "naming_template": DEFAULT_RENAMER_TEMPLATE,
+        "suffix": DEFAULT_RENAMER_SUFFIX,
+    }
     if not config_file.exists():
-        return default_template
+        return default_config
     try:
         loaded = yaml.safe_load(config_file.read_text()) or {}
         if isinstance(loaded, dict):
             renamer_cfg = loaded.get("renamer", {})
             if isinstance(renamer_cfg, dict):
-                return renamer_cfg.get("naming_template", default_template)
+                return {
+                    "naming_template": str(renamer_cfg.get("naming_template", DEFAULT_RENAMER_TEMPLATE)),
+                    "suffix": str(renamer_cfg.get("suffix", DEFAULT_RENAMER_SUFFIX)),
+                }
     except Exception:
         pass
-    return default_template
+    return default_config
 
 
-def rename_audio_file(
+def load_renamer_template(config_path: str | Path | None = None) -> str:
+    return load_renamer_config(config_path)["naming_template"]
+
+
+def load_renamer_suffix(config_path: str | Path | None = None) -> str:
+    return load_renamer_config(config_path)["suffix"]
+
+
+def new_name(
     original_path: Path,
     sequence: str | None,
     shot: str | None,
     take: int | None,
     template: str,
+    suffix: str = "",
 ) -> Path:
     """Format the new filename and rename the file on disk, handling naming conflicts."""
     seq_val = sequence if sequence is not None else ""
@@ -63,21 +80,25 @@ def rename_audio_file(
     new_stem = re.sub(r'_+', '_', new_stem)
     new_stem = new_stem.strip('_')
 
+    if suffix:
+        new_stem = re.sub(r'_+', '_', f"{new_stem}_{suffix}")
+        new_stem = new_stem.strip('_')
+
     if not new_stem:
         LOGGER.warning("Formatted name is empty. Skipping file rename.")
         return original_path
 
     ext = original_path.suffix
-    new_name = f"{new_stem}{ext}"
-    target_path = original_path.parent / new_name
+    candidate_name = f"{new_stem}{ext}"
+    target_path = original_path.parent / candidate_name
 
     if target_path.resolve() == original_path.resolve():
         return original_path
 
     counter = 1
     while target_path.exists():
-        new_name = f"{new_stem}_{counter}{ext}"
-        target_path = original_path.parent / new_name
+        candidate_name = f"{new_stem}_{counter}{ext}"
+        target_path = original_path.parent / candidate_name
         counter += 1
 
     LOGGER.info("Renaming %s to %s", original_path.name, target_path.name)
@@ -88,7 +109,8 @@ def rename_audio_file(
 class PipelineResult(BaseModel):
     """Final aggregated result of the audio scene processing pipeline."""
 
-    source_file: str = Field(description="Name of the source audio file")
+    input_name: str = Field(description="Name of the original input audio file")
+    new_name: str = Field(description="Name of the generated audio file")
 
     # Preprocessor
     preprocessor_codec: str = Field(description="Audio codec used for standardization")
@@ -197,18 +219,20 @@ def run_pipeline(
 
     final_audio_path = Path(audio_path)
     if rename:
-        template = load_renamer_template(config_path)
-        final_audio_path = rename_audio_file(
+        renamer_config = load_renamer_config(config_path)
+        final_audio_path = new_name(
             final_audio_path,
             sequence=llm_res.scene_take.sequence,
             shot=llm_res.scene_take.shot,
             take=llm_res.scene_take.take,
-            template=template,
+            template=renamer_config["naming_template"],
+            suffix=renamer_config["suffix"],
         )
 
     # 7. Aggregate everything into PipelineResult
     return PipelineResult(
-        source_file=final_audio_path.name,
+        input_name=audio_path.name,
+        new_name=final_audio_path.name,
         preprocessor_codec=std_audio.codec,
         preprocessor_sample_rate=std_audio.sample_rate,
         preprocessor_duration_seconds=round(std_audio.duration_seconds, 6),
@@ -234,7 +258,8 @@ def render_pipeline_result(result: PipelineResult) -> str:
     """Render a premium human-readable console summary of the pipeline execution."""
     lines = [
         "⚡️ Audio Scene Pipeline Execution Summary",
-        f"📁 Source File:      {result.source_file}",
+        f"📁 Input Name:       {result.input_name}",
+        f"📦 New Name:         {result.new_name}",
         "========================================",
         "⚙️  Preprocessor Standardized Audio:",
         f"   Codec:            {result.preprocessor_codec}",
@@ -356,8 +381,8 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.save:
             parent_dir = Path(args.audio_file).parent
-            output_name = f"{Path(result.source_file).stem}_result.json"
-            output_path = parent_dir / output_name
+            result_json_name = f"{Path(result.new_name).stem}_result.json"
+            output_path = parent_dir / result_json_name
             output_path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
             print(f"\n💾 Pipeline result successfully saved to {output_path}", file=sys.stderr)
 

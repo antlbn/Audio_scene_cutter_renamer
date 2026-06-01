@@ -23,6 +23,7 @@ whisper:
 
 renamer:
   naming_template: "Sequence_{sequence}_shot_{shot}_take_{take}"
+  suffix: ""
 """.lstrip(),
         encoding="utf-8",
     )
@@ -40,6 +41,7 @@ renamer:
     assert "language: ru" in updated
     assert "task: translate" in updated
     assert "renamer:" in updated
+    assert "suffix: \"\"" in updated
 
 
 def test_save_whisper_settings_creates_missing_whisper_section(tmp_path: Path):
@@ -124,9 +126,37 @@ def test_build_settings_menu_choices_shows_current_values():
         {"name": "Whisper language: french", "value": settings.MENU_LANGUAGE},
         {"name": "Whisper mode: transcribe", "value": settings.MENU_TASK},
         {"name": "Whisper model: openai/whisper-small", "value": settings.MENU_MODEL},
+        {"name": "Rename rendering", "value": settings.MENU_RENAMER},
         {"name": "Delete downloaded Whisper weights", "value": settings.MENU_DELETE_WEIGHTS},
         {"name": "Done / Save", "value": settings.MENU_DONE},
     ]
+
+
+def test_save_renamer_settings_updates_existing_keys_and_keeps_comments(tmp_path: Path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+whisper:
+  model_id: openai/whisper-small
+
+renamer:
+  # The naming template for renamed files.
+  naming_template: "Sequence_{sequence}_shot_{shot}_take_{take}"
+  suffix: ""
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    settings.save_renamer_settings(
+        config_path,
+        naming_template="seq-{sequence}-shot-{shot}-take-{take}",
+        suffix="_AB",
+    )
+
+    updated = config_path.read_text(encoding="utf-8")
+    assert "seq-{sequence}-shot-{shot}-take-{take}" in updated
+    assert 'suffix: "_AB"' in updated
+    assert "# The naming template for renamed files." in updated
 
 
 def test_select_menu_item_uses_clean_prompt(monkeypatch):

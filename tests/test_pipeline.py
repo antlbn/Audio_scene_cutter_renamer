@@ -82,7 +82,8 @@ def test_run_pipeline_with_clapper_hits(
         result = pipeline.run_pipeline(dummy_file)
 
         # Assert correct propagation of fields
-        assert result.source_file == "audio.wav"
+        assert result.input_name == "audio.wav"
+        assert result.new_name == "audio.wav"
         assert result.preprocessor_codec == "aac"
         assert result.preprocessor_sample_rate == 16000
         assert result.preprocessor_duration_seconds == 10.0
@@ -136,7 +137,8 @@ def test_pipeline_cli_output(tmp_path, capsys):
     dummy_file.write_text("dummy content")
 
     mock_result = PipelineResult(
-        source_file="audio.wav",
+        input_name="audio.wav",
+        new_name="audio.wav",
         preprocessor_codec="aac",
         preprocessor_sample_rate=16000,
         preprocessor_duration_seconds=10.0,
@@ -163,7 +165,7 @@ def test_pipeline_cli_output(tmp_path, capsys):
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "Audio Scene Pipeline Execution Summary" in captured.out
-        assert "Source File:      audio.wav" in captured.out
+        assert "Input Name:       audio.wav" in captured.out
         assert "Sequence:      1" in captured.out
         assert "Shot:          3" in captured.out
         assert "Take:          4" in captured.out
@@ -173,7 +175,8 @@ def test_pipeline_cli_output(tmp_path, capsys):
         assert exit_code == 0
         captured = capsys.readouterr()
         parsed = json.loads(captured.out.strip())
-        assert parsed["source_file"] == "audio.wav"
+        assert parsed["input_name"] == "audio.wav"
+        assert parsed["new_name"] == "audio.wav"
         assert parsed["llm_sequence"] == "1"
         assert parsed["llm_shot"] == "3"
         assert parsed["llm_take"] == 4
@@ -184,7 +187,8 @@ def test_pipeline_cli_output(tmp_path, capsys):
         output_json_file = tmp_path / "audio_result.json"
         assert output_json_file.exists()
         saved_data = json.loads(output_json_file.read_text())
-        assert saved_data["source_file"] == "audio.wav"
+        assert saved_data["input_name"] == "audio.wav"
+        assert saved_data["new_name"] == "audio.wav"
         assert saved_data["llm_sequence"] == "1"
         assert saved_data["llm_shot"] == "3"
         assert saved_data["llm_take"] == 4

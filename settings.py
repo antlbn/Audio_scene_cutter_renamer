@@ -32,6 +32,7 @@ WHISPER_LANGUAGE_CHOICES = [
 MENU_LANGUAGE = "language"
 MENU_TASK = "task"
 MENU_MODEL = "model"
+MENU_RENAMER = "renamer"
 MENU_DELETE_WEIGHTS = "delete_weights"
 MENU_DONE = "done"
 MENU_BACK = "back"
@@ -98,6 +99,7 @@ def build_settings_menu_choices(*, language: str, task: str, model_id: str) -> l
         {"name": f"Whisper language: {language}", "value": MENU_LANGUAGE},
         {"name": f"Whisper mode: {task}", "value": MENU_TASK},
         {"name": f"Whisper model: {model_id}", "value": MENU_MODEL},
+        {"name": "Rename rendering", "value": MENU_RENAMER},
         {"name": "Delete downloaded Whisper weights", "value": MENU_DELETE_WEIGHTS},
         {"name": "Done / Save", "value": MENU_DONE},
     ]
@@ -113,6 +115,18 @@ def select_menu_item(inquirer: Any, *, message: str, choices: list[Any], default
         amark="",
         pointer=">",
     ).execute()
+
+
+def select_text_item(inquirer: Any, *, message: str, default: str) -> str:
+    clear_terminal()
+    return str(
+        inquirer.text(
+            message=message,
+            default=default,
+            qmark="",
+            amark="",
+        ).execute()
+    )
 
 
 def resolve_path(value: str | Path, base_dir: Path) -> Path:
@@ -203,6 +217,82 @@ def run_delete_whisper_weights_ui(inquirer: Any, cache_dir: str | Path) -> None:
         delete_cached_whisper_model(model, cache_dir)
 
 
+def build_renamer_menu_choices(*, naming_template: str, suffix: str) -> list[dict[str, str]]:
+    suffix_display = suffix if suffix else "<off>"
+    return [
+        {"name": f"Naming template: {naming_template}", "value": "template"},
+        {"name": f"Suffix: {suffix_display}", "value": "suffix"},
+        {"name": "Back", "value": MENU_BACK},
+    ]
+
+
+def save_renamer_settings(
+    config_path: str | Path,
+    *,
+    naming_template: str,
+    suffix: str,
+) -> None:
+    config_file = Path(config_path)
+    yaml = build_yaml_parser()
+    data = load_config_data(config_file)
+    renamer_config = data.get("renamer")
+
+    if renamer_config is None:
+        renamer_config = new_config_mapping()
+        data["renamer"] = renamer_config
+    elif not isinstance(renamer_config, MutableMapping):
+        raise ValueError(f"Invalid renamer section in {config_file}: expected a mapping")
+
+    renamer_config["naming_template"] = naming_template
+    renamer_config["suffix"] = suffix
+
+    with config_file.open("w", encoding="utf-8") as file:
+        yaml.dump(data, file)
+
+
+def run_renamer_settings_ui(inquirer: Any, config_path: Path, data: MutableMapping[str, Any]) -> None:
+    renamer_config = data.get("renamer", {})
+    if renamer_config is None:
+        renamer_config = {}
+    elif not isinstance(renamer_config, dict):
+        raise ValueError(f"Invalid renamer section in {config_path}: expected a mapping")
+
+    naming_template = str(renamer_config.get("naming_template", "Sequence_{sequence}_shot_{shot}_take_{take}"))
+    suffix = str(renamer_config.get("suffix", ""))
+
+    while True:
+        action = select_menu_item(
+            inquirer,
+            message="Rename rendering",
+            choices=build_renamer_menu_choices(
+                naming_template=naming_template,
+                suffix=suffix,
+            ),
+            default=MENU_BACK,
+        )
+
+        if action == MENU_BACK:
+            break
+        if action == "template":
+            naming_template = select_text_item(
+                inquirer,
+                message="Naming template",
+                default=naming_template,
+            )
+        elif action == "suffix":
+            suffix = select_text_item(
+                inquirer,
+                message="Suffix",
+                default=suffix,
+            )
+
+    save_renamer_settings(
+        config_path,
+        naming_template=naming_template,
+        suffix=suffix,
+    )
+
+
 def save_whisper_settings(
     config_path: str | Path,
     *,
@@ -287,6 +377,8 @@ def run_settings_ui(config_path: str | Path) -> int:
                 choices=_choice_with_current(WHISPER_MODEL_CHOICES, model_id),
                 default=model_id,
             )
+        elif action == MENU_RENAMER:
+            run_renamer_settings_ui(inquirer, config_file, data)
         elif action == MENU_DELETE_WEIGHTS:
             run_delete_whisper_weights_ui(inquirer, current_cache_dir)
 
