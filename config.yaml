@@ -49,13 +49,13 @@ preprocessor:
 
 whisper:
   # Local Whisper checkpoint used for speech-to-text.
-  model_id: openai/whisper-small
+  model_id: openai/whisper-tiny
   # Keep Whisper downloads inside the project tree by default.
   cache_dir: .cache/whisper
   # "auto" uses CUDA if available, otherwise CPU.
   device: auto
   # Default transcription language from the notebook experiments.
-  language: french 
+  language: fr
   # Whisper task used by default in the notebook.
   task: transcribe
   # Keep timestamps available for downstream parsing.

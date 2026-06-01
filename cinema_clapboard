@@ -4,22 +4,21 @@ set -e
 # Help message
 show_help() {
     echo "Usage: cinema_clapboard <audio_file> [options]"
+    echo "       cinema_clapboard -settings"
     echo ""
     echo "Options:"
-    echo "  --language <lang>    Set Whisper language (e.g. --language french, --language english)"
-    echo "                       Shortcut: --france (same as --language french)"
+    echo "  -settings            Open the interactive settings UI"
     echo "  -rename              Rename the original file based on sequence/shot/take"
     echo "  -json                Print JSON to stdout and save result JSON next to the file"
     echo ""
     echo "Examples:"
-    echo "  cinema_clapboard audio.wav --language french -rename -json"
-    echo "  cinema_clapboard audio.wav --france -rename"
+    echo "  cinema_clapboard -settings"
+    echo "  cinema_clapboard audio.wav -rename -json"
     exit 0
 }
 
 # Parse options
 AUDIO_FILE=""
-LANGUAGE=""
 RENAME=false
 SAVE_JSON=false
 
@@ -28,17 +27,9 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             show_help
             ;;
-        --language|-language)
-            if [[ -z "${2:-}" || "${2:-}" == -* ]]; then
-                echo "Error: --language requires a value (e.g. --language french)" >&2
-                exit 1
-            fi
-            LANGUAGE="$2"
-            shift 2
-            ;;
-        --france)
-            LANGUAGE="french"
-            shift
+        -settings|--settings)
+            SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            exec uv run --project "$SCRIPT_DIR" python "$SCRIPT_DIR/settings.py" --config "$SCRIPT_DIR/config.yaml"
             ;;
         -rename|--rename)
             RENAME=true
@@ -73,10 +64,6 @@ fi
 
 # Build python command options
 ARGS=()
-
-if [[ -n "$LANGUAGE" ]]; then
-    ARGS+=("--language" "$LANGUAGE")
-fi
 
 if [ "$RENAME" = true ]; then
     ARGS+=("--rename")

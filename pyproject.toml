@@ -13,6 +13,7 @@ dependencies = [
   "torchaudio==2.2.2",
   "transformers<5",
   "ipykernel",
+  "InquirerPy",
   "openai>=1.0",
   "pydantic>=2.0",
 ]

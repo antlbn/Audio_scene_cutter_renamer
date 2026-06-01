@@ -1,6 +1,26 @@
 
 # Decisions
 
+## UI/UX settings: первый этап
+
+Текущий фокус: не делать весь большой settings-wizard сразу. В MVP settings
+закрывает только один основной use case пайплайна и редактирует секцию
+`whisper` в `config.yaml`.
+
+- `cinema_clapboard -settings` открывает терминальный UI на InquirerPy.
+- В первом этапе доступны только:
+  - язык аудиодорожки для Whisper (`whisper.language`);
+  - режим Whisper: `transcribe` или `translate` (`whisper.task`);
+  - локальная модель Whisper (`whisper.model_id`).
+- Bash-wrapper больше не принимает флаги языка. Язык выбирается через settings и
+  хранится в конфиге.
+- Python CLI (`pipeline.py`, `whisper.py`) пока оставляет `--language` и `--task`
+  как dev/debug override, но пользовательский путь через wrapper идет от
+  `config.yaml`.
+- Остальные идеи settings, такие как rename mode, JSON рядом с файлом, output
+  folder, OpenAI/cloud Whisper, .env wizard, prompt/model docs и удаление весов,
+  остаются roadmap и не входят в первый этап.
+
 пока что проект будет состоять из нескольких больших модулей:  
 
  - модуль загрузки:  *при помощи ffmpeg будет все аудиофайлы приводитьк нужному формату, или пропускать если они уже*
