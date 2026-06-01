@@ -81,3 +81,8 @@ scene_parser:
   # Instruction/description for the take field to guide the LLM format.
   take_description: "Take/prise number (prise) (e.g. 1, 2, 3)"
 
+renamer:
+  # The naming template for renamed files. Supported placeholders:
+  # {sequence}, {shot}, {take}
+  naming_template: "Sequence_{sequence}_shot_{shot}_take_{take}"
+

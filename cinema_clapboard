@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -e
+
+# Help message
+show_help() {
+    echo "Usage: cinema_clapboard <audio_file> [options]"
+    echo ""
+    echo "Options:"
+    echo "  --language <lang>    Set Whisper language (e.g. --language french, --language english)"
+    echo "                       Shortcut: --france (same as --language french)"
+    echo "  -rename              Rename the original file based on sequence/shot/take"
+    echo "  -json                Print JSON to stdout and save result JSON next to the file"
+    echo ""
+    echo "Examples:"
+    echo "  cinema_clapboard audio.wav --language french -rename -json"
+    echo "  cinema_clapboard audio.wav --france -rename"
+    exit 0
+}
+
+# Parse options
+AUDIO_FILE=""
+LANGUAGE=""
+RENAME=false
+SAVE_JSON=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            ;;
+        --language|-language)
+            if [[ -z "${2:-}" || "${2:-}" == -* ]]; then
+                echo "Error: --language requires a value (e.g. --language french)" >&2
+                exit 1
+            fi
+            LANGUAGE="$2"
+            shift 2
+            ;;
+        --france)
+            LANGUAGE="french"
+            shift
+            ;;
+        -rename|--rename)
+            RENAME=true
+            shift
+            ;;
+        -json|--json|-save-json|--save-json)
+            SAVE_JSON=true
+            shift
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            echo "Run 'cinema_clapboard --help' for usage." >&2
+            exit 1
+            ;;
+        *)
+            if [[ -z "$AUDIO_FILE" ]]; then
+                AUDIO_FILE="$1"
+            else
+                echo "Error: Multiple input files are not supported: $1" >&2
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$AUDIO_FILE" ]]; then
+    echo "Error: No audio file specified." >&2
+    echo "Run 'cinema_clapboard --help' for usage." >&2
+    exit 1
+fi
+
+# Build python command options
+ARGS=()
+
+if [[ -n "$LANGUAGE" ]]; then
+    ARGS+=("--language" "$LANGUAGE")
+fi
+
+if [ "$RENAME" = true ]; then
+    ARGS+=("--rename")
+fi
+
+if [ "$SAVE_JSON" = true ]; then
+    ARGS+=("--json" "--save")
+fi
+
+# Run the pipeline inside the virtual environment using uv run
+# SCRIPT_DIR ensures this works when called from any directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec uv run --project "$SCRIPT_DIR" python "$SCRIPT_DIR/pipeline.py" --config "$SCRIPT_DIR/config.yaml" "$AUDIO_FILE" "${ARGS[@]}"

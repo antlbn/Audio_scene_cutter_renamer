@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -24,6 +25,64 @@ import scene_parser
 import whisper
 
 LOGGER = logging.getLogger("pipeline")
+
+
+def load_renamer_template(config_path: str | Path | None = None) -> str:
+    config_file = Path(config_path) if config_path is not None else Path("config.yaml")
+    default_template = "Sequence_{sequence}_shot_{shot}_take_{take}"
+    if not config_file.exists():
+        return default_template
+    try:
+        loaded = yaml.safe_load(config_file.read_text()) or {}
+        if isinstance(loaded, dict):
+            renamer_cfg = loaded.get("renamer", {})
+            if isinstance(renamer_cfg, dict):
+                return renamer_cfg.get("naming_template", default_template)
+    except Exception:
+        pass
+    return default_template
+
+
+def rename_audio_file(
+    original_path: Path,
+    sequence: str | None,
+    shot: str | None,
+    take: int | None,
+    template: str,
+) -> Path:
+    """Format the new filename and rename the file on disk, handling naming conflicts."""
+    seq_val = sequence if sequence is not None else ""
+    shot_val = shot if shot is not None else ""
+    take_val = str(take) if take is not None else ""
+
+    if not seq_val and not shot_val and not take_val:
+        LOGGER.warning("LLM sequence, shot, and take are all missing. Skipping file rename.")
+        return original_path
+
+    new_stem = template.format(sequence=seq_val, shot=shot_val, take=take_val)
+    new_stem = re.sub(r'_+', '_', new_stem)
+    new_stem = new_stem.strip('_')
+
+    if not new_stem:
+        LOGGER.warning("Formatted name is empty. Skipping file rename.")
+        return original_path
+
+    ext = original_path.suffix
+    new_name = f"{new_stem}{ext}"
+    target_path = original_path.parent / new_name
+
+    if target_path.resolve() == original_path.resolve():
+        return original_path
+
+    counter = 1
+    while target_path.exists():
+        new_name = f"{new_stem}_{counter}{ext}"
+        target_path = original_path.parent / new_name
+        counter += 1
+
+    LOGGER.info("Renaming %s to %s", original_path.name, target_path.name)
+    original_path.rename(target_path)
+    return target_path
 
 
 class PipelineResult(BaseModel):
@@ -66,6 +125,7 @@ def run_pipeline(
     config_path: str | Path | None = None,
     whisper_language: str | None = None,
     whisper_task: str | None = None,
+    rename: bool = False,
 ) -> PipelineResult:
     """Execute the full processing pipeline on a single audio file.
 
@@ -135,9 +195,20 @@ def run_pipeline(
     # 6. LLM Scene Parser: parse the transcribed text
     llm_res = scene_parser.parse_scene(whisp_res, config=llm_config)
 
+    final_audio_path = Path(audio_path)
+    if rename:
+        template = load_renamer_template(config_path)
+        final_audio_path = rename_audio_file(
+            final_audio_path,
+            sequence=llm_res.scene_take.sequence,
+            shot=llm_res.scene_take.shot,
+            take=llm_res.scene_take.take,
+            template=template,
+        )
+
     # 7. Aggregate everything into PipelineResult
     return PipelineResult(
-        source_file=audio_path.name,
+        source_file=final_audio_path.name,
         preprocessor_codec=std_audio.codec,
         preprocessor_sample_rate=std_audio.sample_rate,
         preprocessor_duration_seconds=round(std_audio.duration_seconds, 6),
@@ -246,6 +317,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override the configured Whisper task.",
     )
+    parser.add_argument(
+        "--france",
+        action="store_true",
+        help="Set Whisper transcription language to French.",
+    )
+    parser.add_argument(
+        "--rename",
+        "-rename",
+        action="store_true",
+        help="Rename the source audio file based on sequence/shot/take.",
+    )
     return parser
 
 
@@ -255,11 +337,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        lang = args.language
+        if args.france:
+            lang = "french"
+
         result = run_pipeline(
             args.audio_file,
             config_path=args.config,
-            whisper_language=args.language,
+            whisper_language=lang,
             whisper_task=args.task,
+            rename=args.rename,
         )
 
         if args.json:
@@ -268,8 +355,9 @@ def main(argv: list[str] | None = None) -> int:
             print(render_pipeline_result(result))
 
         if args.save:
-            output_name = f"{args.audio_file.stem}_result.json"
-            output_path = args.audio_file.parent / output_name
+            parent_dir = Path(args.audio_file).parent
+            output_name = f"{Path(result.source_file).stem}_result.json"
+            output_path = parent_dir / output_name
             output_path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
             print(f"\n💾 Pipeline result successfully saved to {output_path}", file=sys.stderr)
 
