@@ -7,13 +7,15 @@ import json
 import logging
 import os
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
 from openai import OpenAI
 from pydantic import BaseModel, Field
+
+from config_utils import load_env_file, merge_config_dict, resolve_path
 
 # Set up logging
 LOGGER = logging.getLogger("scene_parser")
@@ -66,38 +68,6 @@ def _default_config_path() -> Path:
     return Path(__file__).with_name("config.yaml")
 
 
-def _resolve_path(value: str | Path, base_dir: Path) -> Path:
-    path = Path(value)
-    if path.is_absolute():
-        return path
-    return (base_dir / path).resolve()
-
-
-def _load_env_file(env_path: Path) -> None:
-    if not env_path.exists():
-        return
-
-    for line in env_path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key:
-            if key not in os.environ or os.environ[key] in ("your_openrouter_key_here", "YOUR_HUGGING_FACE_TOKEN_HERE", "YOUR_HF_TOKEN_HERE", "YOUR_KEY_HERE", ""):
-                os.environ[key] = value
-
-
-def _merge_config_dict(defaults: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
-    merged: dict[str, Any] = dict(defaults)
-    for key, value in overrides.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
-            merged[key] = _merge_config_dict(merged[key], value)
-        else:
-            merged[key] = value
-    return merged
 
 
 def load_config(config_path: str | Path | None = None) -> SceneParserConfig:
@@ -136,7 +106,7 @@ def load_config(config_path: str | Path | None = None) -> SceneParserConfig:
         "shot_description": DEFAULT_SHOT_DESCRIPTION,
         "take_description": DEFAULT_TAKE_DESCRIPTION,
     }
-    merged = _merge_config_dict(defaults, raw)
+    merged = merge_config_dict(defaults, raw)
     return SceneParserConfig(
         model=str(merged["model"]),
         api_base=str(merged["api_base"]),
@@ -182,7 +152,7 @@ def parse_scene(
 
     # Load environment variables
     project_root = Path(__file__).resolve().parent
-    _load_env_file(project_root / ".env")
+    load_env_file(project_root / ".env")
 
     # Get API key
     api_key = os.environ.get(config.api_key_env)
@@ -193,7 +163,7 @@ def parse_scene(
         )
 
     # Read prompt template
-    prompt_file = _resolve_path(config.prompt_path, project_root)
+    prompt_file = resolve_path(config.prompt_path, project_root)
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt template file not found: {prompt_file}")
 

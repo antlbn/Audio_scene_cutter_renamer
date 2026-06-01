@@ -18,6 +18,7 @@ from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
 import cutter
 import preprocessor
+from config_utils import load_env_file, merge_config_dict, resolve_path
 
 
 LOGGER = logging.getLogger("whisper")
@@ -85,23 +86,6 @@ def _default_config_path() -> Path:
     return Path(__file__).with_name("config.yaml")
 
 
-def _merge_config_dict(defaults: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
-    merged: dict[str, Any] = dict(defaults)
-    for key, value in overrides.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
-            merged[key] = _merge_config_dict(merged[key], value)
-        else:
-            merged[key] = value
-    return merged
-
-
-def _resolve_path(value: str | Path, base_dir: Path) -> Path:
-    path = Path(value)
-    if path.is_absolute():
-        return path
-    return (base_dir / path).resolve()
-
-
 def _get_device(device_name: str) -> torch.device:
     if device_name == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -134,7 +118,7 @@ def load_config(config_path: str | Path | None = None) -> WhisperConfig:
         "task": DEFAULT_TASK,
         "return_timestamps": DEFAULT_RETURN_TIMESTAMPS,
     }
-    merged = _merge_config_dict(defaults, raw)
+    merged = merge_config_dict(defaults, raw)
     return WhisperConfig(
         model_id=str(merged["model_id"]),
         cache_dir=str(merged["cache_dir"]),
@@ -145,23 +129,6 @@ def load_config(config_path: str | Path | None = None) -> WhisperConfig:
     )
 
 
-def _load_env_file(env_path: Path) -> None:
-    if not env_path.exists():
-        return
-
-    import os
-
-    for line in env_path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key:
-            if key not in os.environ or os.environ[key] in ("your_openrouter_key_here", "YOUR_HUGGING_FACE_TOKEN_HERE", "YOUR_HF_TOKEN_HERE", "YOUR_KEY_HERE", ""):
-                os.environ[key] = value
 
 
 def _normalize_timestamp(value: Any) -> tuple[float | None, float | None] | None:
@@ -196,14 +163,14 @@ def load_runtime(config: WhisperConfig, *, cache_base_dir: Path | None = None) -
     """Load and cache the Whisper pipeline."""
 
     cache_root = cache_base_dir or Path(__file__).resolve().parent
-    cache_dir = _resolve_path(config.cache_dir, cache_root)
+    cache_dir = resolve_path(config.cache_dir, cache_root)
     device = _get_device(config.device)
     cache_key = (config.model_id, str(cache_dir), str(device))
 
     if cache_key in _RUNTIME_CACHE:
         return _RUNTIME_CACHE[cache_key]
 
-    _load_env_file(Path(__file__).with_name(".env"))
+    load_env_file(Path(__file__).with_name(".env"))
 
     print(f"[whisper] loading model: {config.model_id}", file=sys.stderr)
     processor = AutoProcessor.from_pretrained(config.model_id, cache_dir=str(cache_dir))

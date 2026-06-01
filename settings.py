@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from config_utils import resolve_path
+
 WHISPER_MODEL_CHOICES = [
     "openai/whisper-tiny",
     "openai/whisper-base",
@@ -127,13 +129,6 @@ def select_text_item(inquirer: Any, *, message: str, default: str) -> str:
             amark="",
         ).execute()
     )
-
-
-def resolve_path(value: str | Path, base_dir: Path) -> Path:
-    path = Path(value)
-    if path.is_absolute():
-        return path
-    return (base_dir / path).resolve()
 
 
 def directory_size(path: Path) -> int:

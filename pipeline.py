@@ -7,13 +7,10 @@ then aggregates the metadata into a single structured result.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import re
 import sys
-from dataclasses import asdict
 from pathlib import Path
-from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field
@@ -39,15 +36,17 @@ def load_renamer_config(config_path: str | Path | None = None) -> dict[str, str]
         return default_config
     try:
         loaded = yaml.safe_load(config_file.read_text()) or {}
-        if isinstance(loaded, dict):
-            renamer_cfg = loaded.get("renamer", {})
-            if isinstance(renamer_cfg, dict):
-                return {
-                    "naming_template": str(renamer_cfg.get("naming_template", DEFAULT_RENAMER_TEMPLATE)),
-                    "suffix": str(renamer_cfg.get("suffix", DEFAULT_RENAMER_SUFFIX)),
-                }
-    except Exception:
-        pass
+    except (yaml.YAMLError, OSError) as exc:
+        LOGGER.warning("Failed to load renamer config %s: %s", config_file, exc)
+        return default_config
+
+    if isinstance(loaded, dict):
+        renamer_cfg = loaded.get("renamer", {})
+        if isinstance(renamer_cfg, dict):
+            return {
+                "naming_template": str(renamer_cfg.get("naming_template", DEFAULT_RENAMER_TEMPLATE)),
+                "suffix": str(renamer_cfg.get("suffix", DEFAULT_RENAMER_SUFFIX)),
+            }
     return default_config
 
 
@@ -177,7 +176,7 @@ def run_pipeline(
         whisp_config.task = whisper_task
 
     # 2. Preprocess: standardize audio in-memory
-    print(f"[pipeline] standardizing audio: {audio_path.name}", file=sys.stderr)
+    LOGGER.info("standardizing audio: %s", audio_path.name)
     std_audio = preprocessor.standardize_audio(audio_path, config=prep_config)
 
     # 3. Clapper: run CLAP detector on the raw source file.
@@ -196,7 +195,7 @@ def run_pipeline(
     if clap_res.best_scores:
         # Determine best hit (highest score)
         best_hit = max(clap_res.best_scores, key=lambda hit: (float(hit.score), -float(hit.timestamp)))
-        print(f"[pipeline] best clapper hit at {best_hit.timestamp:.2f}s (score {best_hit.score:.3f})", file=sys.stderr)
+        LOGGER.info("best clapper hit at %.2fs (score %.3f)", best_hit.timestamp, best_hit.score)
 
         # Run cutter to trim audio in memory
         try:
@@ -204,11 +203,11 @@ def run_pipeline(
             whisper_source = cut_res.standardized_audio
             cutter_clip_start = cut_res.clip_start_seconds
             cutter_clip_end = cut_res.clip_end_seconds
-            print(f"[pipeline] audio trimmed to {cutter_clip_start}s - {cutter_clip_end}s", file=sys.stderr)
+            LOGGER.info("audio trimmed to %s s - %s s", cutter_clip_start, cutter_clip_end)
         except Exception as exc:
-            print(f"[pipeline] ⚠️ cutting failed: {exc}. transcribing full audio.", file=sys.stderr)
+            LOGGER.warning("cutting failed: %s. transcribing full audio.", exc)
     else:
-        print("[pipeline] ⚠️ no clapper hits detected. transcribing full audio.", file=sys.stderr)
+        LOGGER.warning("no clapper hits detected. transcribing full audio.")
 
     # 5. Whisper: transcribe the audio source (either cut or full standardized)
     whisp_runtime = whisper.load_runtime(whisp_config)
