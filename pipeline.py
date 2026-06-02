@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 import clapper
 import cutter
+import presentator_cli
 import preprocessor
 import scene_parser
 import whisper
@@ -253,63 +254,6 @@ def run_pipeline(
     )
 
 
-def render_pipeline_result(result: PipelineResult) -> str:
-    """Render a premium human-readable console summary of the pipeline execution."""
-    lines = [
-        "⚡️ Audio Scene Pipeline Execution Summary",
-        f"📁 Input Name:       {result.input_name}",
-        f"📦 New Name:         {result.new_name}",
-        "========================================",
-        "⚙️  Preprocessor Standardized Audio:",
-        f"   Codec:            {result.preprocessor_codec}",
-        f"   Sample Rate:      {result.preprocessor_sample_rate} Hz",
-        f"   Duration:         {result.preprocessor_duration_seconds:.2f} s",
-        "",
-        "🎬 Clapper Detection:",
-        f"   Total Hits:       {result.clapper_hits}",
-    ]
-
-    if result.clapper_hits > 0:
-        lines.extend([
-            f"   Best Hit Time:    {result.clapper_best_timestamp:.2f} s",
-            f"   Best Hit Score:   {result.clapper_best_score:.3f}",
-            f"   Best Text Key:    '{result.clapper_best_text_key}'",
-        ])
-    else:
-        lines.append("   Best Hit Time:    None (No clap detected)")
-
-    lines.extend([
-        "",
-        "✂️  Cutter Trim Range:",
-    ])
-    if result.cutter_clip_start is not None:
-        lines.extend([
-            f"   Clip Start:       {result.cutter_clip_start:.2f} s",
-            f"   Clip End:         {result.cutter_clip_end:.2f} s",
-            f"   Clip Duration:    {(result.cutter_clip_end - result.cutter_clip_start):.2f} s",
-        ])
-    else:
-        lines.append("   Clip Start:       None (No trim performed)")
-
-    lines.extend([
-        "",
-        "🗣  Speech-To-Text (Whisper):",
-        f"   Model:            {result.whisper_model}",
-        f"   Language:         {result.whisper_language}",
-        f"   Task:             {result.whisper_task}",
-        f"   Transcription:    \"{result.whisper_text}\"",
-        "",
-        "🤖 Structured Parser (LLM):",
-        f"   Model:            {result.llm_model}",
-        f"   🎬 Sequence:      {result.llm_sequence}",
-        f"   🎞  Shot:          {result.llm_shot}",
-        f"   🎥 Take:          {result.llm_take}",
-        f"   📝 Announcement:  \"{result.llm_announcement}\"",
-    ])
-
-    return "\n".join(lines)
-
-
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Process an audio file through the full scene-rename pipeline.")
     parser.add_argument("audio_file", type=Path, help="Path to the input audio file.")
@@ -373,10 +317,12 @@ def main(argv: list[str] | None = None) -> int:
             rename=args.rename,
         )
 
-        if args.json:
-            print(result.model_dump_json(indent=2))
-        else:
-            print(render_pipeline_result(result))
+        # Present the result using presentator_cli
+        presentator_cli.present(
+            result.model_dump(),
+            use_case="name_extractor",
+            json_output=args.json,
+        )
 
         if args.save:
             parent_dir = Path(args.audio_file).parent
