@@ -163,11 +163,11 @@ def test_pipeline_cli_output(tmp_path, capsys):
         exit_code = pipeline.main([str(dummy_file)])
         assert exit_code == 0
         captured = capsys.readouterr()
-        assert "Audio Scene Pipeline Execution Summary" in captured.out
-        assert "Input Name:       audio.wav" in captured.out
-        assert "Sequence:      1" in captured.out
-        assert "Shot:          3" in captured.out
-        assert "Take:          4" in captured.out
+        assert "🎬 Scene Naming Pipeline Result" in captured.out
+        assert "📁 Input File:       audio.wav" in captured.out
+        assert "🎬 Sequence:       1" in captured.out
+        assert "🎞  Shot:          3" in captured.out
+        assert "🎥 Take:          4" in captured.out
 
         # 2. JSON format
         exit_code = pipeline.main([str(dummy_file), "--json"])

@@ -127,6 +127,7 @@ def test_build_settings_menu_choices_shows_current_values():
         {"name": "Whisper mode: transcribe", "value": settings.MENU_TASK},
         {"name": "Whisper model: openai/whisper-small", "value": settings.MENU_MODEL},
         {"name": "Rename rendering", "value": settings.MENU_RENAMER},
+        {"name": "LLM API Key Manager", "value": settings.MENU_LLM_KEY_MANAGER},
         {"name": "Delete downloaded Whisper weights", "value": settings.MENU_DELETE_WEIGHTS},
         {"name": "Done / Save", "value": settings.MENU_DONE},
     ]
@@ -151,6 +152,9 @@ renamer:
         config_path,
         naming_template="seq-{sequence}-shot-{shot}-take-{take}",
         suffix="_AB",
+        extract_from_source=False,
+        extract_pattern="_([Tt]r\\d+)",
+        extract_format="_{match}",
     )
 
     updated = config_path.read_text(encoding="utf-8")
@@ -240,3 +244,37 @@ def test_delete_cached_whisper_model_refuses_outside_cache(tmp_path: Path):
         assert "outside cache directory" in str(exc)
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_llm_key_manager_helpers(tmp_path: Path):
+    env_file = tmp_path / ".env"
+
+    # Test mask_key
+    assert settings.mask_key("") == "<Not Set>"
+    assert settings.mask_key("your_openrouter_key_here") == "<Not Set>"
+    assert settings.mask_key("12345") == "****"
+    assert settings.mask_key("sk-or-v1-abcdef12345678") == "sk-or-v1...5678"
+
+    # Test read_api_key_from_env on non-existent file
+    assert settings.read_api_key_from_env(env_file) == ""
+
+    # Test write_api_key_to_env
+    settings.write_api_key_to_env(env_file, "my-secret-key")
+    assert settings.read_api_key_from_env(env_file) == "my-secret-key"
+
+    # Test updating existing key and keeping other env vars
+    env_file.write_text(
+        """
+OTHER_VAR=123
+OPENROUTER_API_KEY="old-key"
+ANOTHER_VAR="abc"
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    settings.write_api_key_to_env(env_file, "new-key")
+    content = env_file.read_text(encoding="utf-8")
+    assert 'OPENROUTER_API_KEY="new-key"' in content
+    assert "OTHER_VAR=123" in content
+    assert 'ANOTHER_VAR="abc"' in content
+    assert settings.read_api_key_from_env(env_file) == "new-key"

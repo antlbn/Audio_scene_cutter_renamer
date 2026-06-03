@@ -35,6 +35,7 @@ MENU_LANGUAGE = "language"
 MENU_TASK = "task"
 MENU_MODEL = "model"
 MENU_RENAMER = "renamer"
+MENU_LLM_KEY_MANAGER = "llm_key_manager"
 MENU_DELETE_WEIGHTS = "delete_weights"
 MENU_DONE = "done"
 MENU_BACK = "back"
@@ -102,6 +103,7 @@ def build_settings_menu_choices(*, language: str, task: str, model_id: str) -> l
         {"name": f"Whisper mode: {task}", "value": MENU_TASK},
         {"name": f"Whisper model: {model_id}", "value": MENU_MODEL},
         {"name": "Rename rendering", "value": MENU_RENAMER},
+        {"name": "LLM API Key Manager", "value": MENU_LLM_KEY_MANAGER},
         {"name": "Delete downloaded Whisper weights", "value": MENU_DELETE_WEIGHTS},
         {"name": "Done / Save", "value": MENU_DONE},
     ]
@@ -336,6 +338,108 @@ def run_renamer_settings_ui(inquirer: Any, config_path: Path, data: MutableMappi
     )
 
 
+def mask_key(key: str) -> str:
+    if not key or key in {"your_openrouter_key_here", "YOUR_KEY_HERE"}:
+        return "<Not Set>"
+    if len(key) <= 12:
+        return "****"
+    return f"{key[:8]}...{key[-4:]}"
+
+
+def read_api_key_from_env(env_path: Path) -> str:
+    if not env_path.exists():
+        return ""
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key == "OPENROUTER_API_KEY":
+            return value.strip().strip('"').strip("'")
+    return ""
+
+
+def write_api_key_to_env(env_path: Path, new_key: str) -> None:
+    import os
+
+    lines = []
+    key_found = False
+
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped.startswith("OPENROUTER_API_KEY") and "=" in stripped:
+                lines.append(f'OPENROUTER_API_KEY="{new_key}"')
+                key_found = True
+            else:
+                lines.append(line)
+
+    if not key_found:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append(f'OPENROUTER_API_KEY="{new_key}"')
+
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    os.environ["OPENROUTER_API_KEY"] = new_key
+
+
+def run_llm_key_manager_ui(inquirer: Any, project_root: Path) -> None:
+    env_file = project_root / ".env"
+
+    while True:
+        current_key = read_api_key_from_env(env_file)
+        masked = mask_key(current_key)
+
+        choices = [
+            {"name": f"Current Key: {masked}", "value": "status"},
+            {"name": "Set / Edit OpenRouter API Key", "value": "edit"},
+            {"name": "Clear OpenRouter API Key", "value": "clear"},
+            {"name": "Back", "value": MENU_BACK},
+        ]
+
+        selected = select_menu_item(
+            inquirer,
+            message="LLM API Key Manager",
+            choices=choices,
+            default=MENU_BACK,
+        )
+
+        if selected == MENU_BACK:
+            break
+        elif selected == "status":
+            select_menu_item(
+                inquirer,
+                message=f"Current API Key in .env is: {current_key or '<Not Set>'}",
+                choices=[{"name": "Back", "value": MENU_BACK}],
+                default=MENU_BACK,
+            )
+        elif selected == "edit":
+            clear_terminal()
+            new_key = inquirer.text(
+                message="Enter new OpenRouter API Key:",
+                default=current_key,
+                qmark="",
+                amark="",
+            ).execute()
+
+            if new_key is not None:
+                new_key = new_key.strip()
+                write_api_key_to_env(env_file, new_key)
+        elif selected == "clear":
+            confirmation = select_menu_item(
+                inquirer,
+                message="Are you sure you want to clear the OpenRouter API Key?",
+                choices=[
+                    {"name": "Cancel", "value": False},
+                    {"name": "Clear", "value": True},
+                ],
+                default=False,
+            )
+            if confirmation:
+                write_api_key_to_env(env_file, "")
+
+
 def save_whisper_settings(
     config_path: str | Path,
     *,
@@ -422,6 +526,8 @@ def run_settings_ui(config_path: str | Path) -> int:
             )
         elif action == MENU_RENAMER:
             run_renamer_settings_ui(inquirer, config_file, data)
+        elif action == MENU_LLM_KEY_MANAGER:
+            run_llm_key_manager_ui(inquirer, config_file.parent)
         elif action == MENU_DELETE_WEIGHTS:
             run_delete_whisper_weights_ui(inquirer, current_cache_dir)
 
