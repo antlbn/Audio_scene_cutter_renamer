@@ -3,24 +3,31 @@ set -e
 
 # Help message
 show_help() {
-    echo "Usage: cinema_clapboard <audio_file> [options]"
+    echo "Usage: cinema_clapboard <audio_file_or_directory> [options]"
     echo "       cinema_clapboard -settings"
+    echo ""
+    echo "Arguments:"
+    echo "  <audio_file>         Process a single audio file"
+    echo "  <directory>          Scan directory recursively, select files via TUI"
     echo ""
     echo "Options:"
     echo "  -settings            Open the interactive settings UI"
     echo "  -rename              Rename the original file based on sequence/shot/take"
-    echo "  -json                Print JSON to stdout and save result JSON next to the file"
+    echo "  -json                Print JSON to stdout"
+    echo "  -save                Save result JSON next to the processed file"
     echo ""
     echo "Examples:"
     echo "  cinema_clapboard -settings"
-    echo "  cinema_clapboard audio.wav -rename -json"
+    echo "  cinema_clapboard audio.wav -rename"
+    echo "  cinema_clapboard ./recordings/ -rename -save"
     exit 0
 }
 
 # Parse options
-AUDIO_FILE=""
+INPUT_PATH=""
 RENAME=false
 SAVE_JSON=false
+SAVE=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -39,16 +46,21 @@ while [[ $# -gt 0 ]]; do
             SAVE_JSON=true
             shift
             ;;
+        -save|--save)
+            SAVE=true
+            shift
+            ;;
         -*)
             echo "Unknown option: $1" >&2
             echo "Run 'cinema_clapboard --help' for usage." >&2
             exit 1
             ;;
         *)
-            if [[ -z "$AUDIO_FILE" ]]; then
-                AUDIO_FILE="$1"
+            if [[ -z "$INPUT_PATH" ]]; then
+                INPUT_PATH="$1"
             else
-                echo "Error: Multiple input files are not supported: $1" >&2
+                echo "Error: Multiple positional arguments are not supported: $1" >&2
+                echo "Run 'cinema_clapboard --help' for usage." >&2
                 exit 1
             fi
             shift
@@ -56,8 +68,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "$AUDIO_FILE" ]]; then
-    echo "Error: No audio file specified." >&2
+if [[ -z "$INPUT_PATH" ]]; then
+    echo "Error: No file or directory specified." >&2
     echo "Run 'cinema_clapboard --help' for usage." >&2
     exit 1
 fi
@@ -70,10 +82,14 @@ if [ "$RENAME" = true ]; then
 fi
 
 if [ "$SAVE_JSON" = true ]; then
-    ARGS+=("--json" "--save")
+    ARGS+=("--json")
 fi
 
-# Run the pipeline inside the virtual environment using uv run
+if [ "$SAVE" = true ]; then
+    ARGS+=("--save")
+fi
+
+# Run the unified orchestrator inside the virtual environment using uv run.
 # SCRIPT_DIR ensures this works when called from any directory.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec uv run --project "$SCRIPT_DIR" python "$SCRIPT_DIR/pipeline.py" --config "$SCRIPT_DIR/config.yaml" "$AUDIO_FILE" "${ARGS[@]}"
+exec uv run --project "$SCRIPT_DIR" python "$SCRIPT_DIR/batch_runner.py" --config "$SCRIPT_DIR/config.yaml" "$INPUT_PATH" "${ARGS[@]}"
