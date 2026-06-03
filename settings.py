@@ -218,6 +218,7 @@ def build_renamer_menu_choices(*, naming_template: str, suffix: str) -> list[dic
         {"name": f"Naming template: {naming_template}", "value": "template"},
         {"name": f"Suffix: {suffix_display}", "value": "suffix"},
         {"name": "Back", "value": MENU_BACK},
+        {'name': f"Audio_Track_Suffix {extract_from_source}", "value": "suffix"},
     ]
 
 

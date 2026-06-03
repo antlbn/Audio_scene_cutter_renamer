@@ -117,3 +117,133 @@ def test_rename_audio_file_appends_suffix_as_is(tmp_path):
 
     assert new_path.name == "Sequence_1_shot_3_take_5_AB.wav"
     assert new_path.exists()
+
+
+def test_extract_from_source_zoom_format_with_timestamp(tmp_path):
+    """Test ZOOM format: ZOOM0746_Tr3 [2026-05-28 152751].wav"""
+    original = tmp_path / "ZOOM0746_Tr3 [2026-05-28 152751].wav"
+    original.write_text("audio data")
+
+    template = "Sequence_{sequence}_shot_{shot}_take_{take}"
+    new_path = pipeline.new_name(
+        original_path=original,
+        sequence="1",
+        shot="3",
+        take=5,
+        template=template,
+        suffix="",
+        extract_from_source=True,
+        extract_pattern="_([Tt]r\\d+)",
+        extract_format="_{match}",
+    )
+
+    assert new_path.name == "Sequence_1_shot_3_take_5_Tr3.wav"
+    assert new_path.exists()
+
+
+def test_extract_from_source_zoom_format_no_timestamp(tmp_path):
+    """Test ZOOM format: ZOOM0746_Tr3.wav"""
+    original = tmp_path / "ZOOM0746_Tr3.wav"
+    original.write_text("audio data")
+
+    template = "Sequence_{sequence}_shot_{shot}_take_{take}"
+    new_path = pipeline.new_name(
+        original_path=original,
+        sequence="1",
+        shot="3",
+        take=5,
+        template=template,
+        extract_from_source=True,
+        extract_pattern="_([Tt]r\\d+)",
+        extract_format="_{match}",
+    )
+
+    assert new_path.name == "Sequence_1_shot_3_take_5_Tr3.wav"
+    assert new_path.exists()
+
+
+def test_extract_from_source_after_second_underscore(tmp_path):
+    """Test format: 260603_0001_12.wav - extract '12' after second underscore"""
+    original = tmp_path / "260603_0001_12.wav"
+    original.write_text("audio data")
+
+    template = "Sequence_{sequence}_shot_{shot}_take_{take}"
+    new_path = pipeline.new_name(
+        original_path=original,
+        sequence="1",
+        shot="3",
+        take=5,
+        template=template,
+        extract_from_source=True,
+        extract_pattern="^[^_]*_[^_]*_(.+?)$",
+        extract_format="_TR{match}",
+    )
+
+    assert new_path.name == "Sequence_1_shot_3_take_5_TR12.wav"
+    assert new_path.exists()
+
+
+def test_extract_from_source_disabled(tmp_path):
+    """When extract_from_source is False, should not extract"""
+    original = tmp_path / "ZOOM0746_Tr3.wav"
+    original.write_text("audio data")
+
+    template = "Sequence_{sequence}_shot_{shot}_take_{take}"
+    new_path = pipeline.new_name(
+        original_path=original,
+        sequence="1",
+        shot="3",
+        take=5,
+        template=template,
+        extract_from_source=False,
+        extract_pattern="_([Tt]r\\d+)",
+        extract_format="_{match}",
+    )
+
+    assert new_path.name == "Sequence_1_shot_3_take_5.wav"
+    assert new_path.exists()
+
+
+def test_extract_from_source_pattern_no_match(tmp_path):
+    """When pattern doesn't match, should just use the base name"""
+    original = tmp_path / "no_match_here.wav"
+    original.write_text("audio data")
+
+    template = "Sequence_{sequence}_shot_{shot}_take_{take}"
+    new_path = pipeline.new_name(
+        original_path=original,
+        sequence="1",
+        shot="3",
+        take=5,
+        template=template,
+        extract_from_source=True,
+        extract_pattern="_([Tt]r\\d+)",
+        extract_format="_{match}",
+    )
+
+    # No extraction, just the base name
+    assert new_path.name == "Sequence_1_shot_3_take_5.wav"
+    assert new_path.exists()
+
+
+def test_extract_from_source_with_suffix(tmp_path):
+    """Extract from source AND apply suffix"""
+    original = tmp_path / "ZOOM0746_Tr3.wav"
+    original.write_text("audio data")
+
+    template = "Sequence_{sequence}_shot_{shot}_take_{take}"
+    new_path = pipeline.new_name(
+        original_path=original,
+        sequence="1",
+        shot="3",
+        take=5,
+        template=template,
+        suffix="KinoBlia",
+        extract_from_source=True,
+        extract_pattern="_([Tt]r\\d+)",
+        extract_format="_{match}",
+    )
+
+    # suffix is added after template, then extraction is appended
+    assert new_path.name == "Sequence_1_shot_3_take_5_KinoBlia_Tr3.wav"
+    assert new_path.exists()

@@ -25,13 +25,19 @@ import whisper
 LOGGER = logging.getLogger("pipeline")
 DEFAULT_RENAMER_TEMPLATE = "Sequence_{sequence}_shot_{shot}_take_{take}"
 DEFAULT_RENAMER_SUFFIX = ""
+DEFAULT_EXTRACT_FROM_SOURCE = False
+DEFAULT_EXTRACT_PATTERN = "_([Tt]r\\d+)"
+DEFAULT_EXTRACT_FORMAT = "_{match}"
 
 
-def load_renamer_config(config_path: str | Path | None = None) -> dict[str, str]:
+def load_renamer_config(config_path: str | Path | None = None) -> dict[str, str | bool]:
     config_file = Path(config_path) if config_path is not None else Path("config.yaml")
     default_config = {
         "naming_template": DEFAULT_RENAMER_TEMPLATE,
         "suffix": DEFAULT_RENAMER_SUFFIX,
+        "extract_from_source": DEFAULT_EXTRACT_FROM_SOURCE,
+        "extract_pattern": DEFAULT_EXTRACT_PATTERN,
+        "extract_format": DEFAULT_EXTRACT_FORMAT,
     }
     if not config_file.exists():
         return default_config
@@ -47,6 +53,9 @@ def load_renamer_config(config_path: str | Path | None = None) -> dict[str, str]
             return {
                 "naming_template": str(renamer_cfg.get("naming_template", DEFAULT_RENAMER_TEMPLATE)),
                 "suffix": str(renamer_cfg.get("suffix", DEFAULT_RENAMER_SUFFIX)),
+                "extract_from_source": bool(renamer_cfg.get("extract_from_source", DEFAULT_EXTRACT_FROM_SOURCE)),
+                "extract_pattern": str(renamer_cfg.get("extract_pattern", DEFAULT_EXTRACT_PATTERN)),
+                "extract_format": str(renamer_cfg.get("extract_format", DEFAULT_EXTRACT_FORMAT)),
             }
     return default_config
 
@@ -66,8 +75,26 @@ def new_name(
     take: int | None,
     template: str,
     suffix: str = "",
+    extract_from_source: bool = False,
+    extract_pattern: str = "",
+    extract_format: str = "",
 ) -> Path:
-    """Format the new filename and rename the file on disk, handling naming conflicts."""
+    """Format the new filename and rename the file on disk, handling naming conflicts.
+    
+    Args:
+        original_path: Path to the original file.
+        sequence: Extracted sequence number.
+        shot: Extracted shot number.
+        take: Extracted take number.
+        template: Naming template with {sequence}, {shot}, {take} placeholders.
+        suffix: Suffix to append to the filename.
+        extract_from_source: Whether to extract part of the original filename.
+        extract_pattern: Regex pattern to extract from original filename (e.g., "_([Tt]r\\d+)" for ZOOM).
+        extract_format: Format string for the extracted value (e.g., "_{match}").
+    
+    Returns:
+        Path to the renamed file.
+    """
     seq_val = sequence if sequence is not None else ""
     shot_val = shot if shot is not None else ""
     take_val = str(take) if take is not None else ""
@@ -83,6 +110,19 @@ def new_name(
     if suffix:
         new_stem = re.sub(r'_+', '_', f"{new_stem}_{suffix}")
         new_stem = new_stem.strip('_')
+
+    # Extract part of the original filename if configured
+    if extract_from_source and extract_pattern and extract_format:
+        # Remove extension and search for pattern in stem
+        original_stem = original_path.stem
+        match = re.search(extract_pattern, original_stem)
+        if match:
+            extracted_value = match.group(1)
+            extracted_suffix = extract_format.format(match=extracted_value)
+            new_stem = f"{new_stem}{extracted_suffix}"
+            LOGGER.info("Extracted '%s' from source filename, appending: %s", extracted_value, extracted_suffix)
+        else:
+            LOGGER.debug("No match found for extract_pattern '%s' in '%s'", extract_pattern, original_stem)
 
     if not new_stem:
         LOGGER.warning("Formatted name is empty. Skipping file rename.")
@@ -227,6 +267,9 @@ def run_pipeline(
             take=llm_res.scene_take.take,
             template=renamer_config["naming_template"],
             suffix=renamer_config["suffix"],
+            extract_from_source=renamer_config["extract_from_source"],
+            extract_pattern=renamer_config["extract_pattern"],
+            extract_format=renamer_config["extract_format"],
         )
 
     # 7. Aggregate everything into PipelineResult

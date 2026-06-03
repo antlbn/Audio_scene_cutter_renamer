@@ -170,6 +170,54 @@ uv run python pipeline.py claps/тест.wav --save
 
 ---
 
+## Переименование файлов (renamer) — извлечение информации из оригинального имени
+
+По умолчанию пайплайн переименовывает файл в формат: `Sequence_{sequence}_shot_{shot}_take_{take}`.
+
+Но часто нужно сохранить информацию из оригинального имени файла (например, номер канала ZOOM-рекордера).
+Для этого в `config.yaml` в секции `renamer` есть параметры для **автоматического извлечения и добавления** информации из исходного имени:
+
+### Примеры конфигураций:
+
+**Стандарт ZOOM** (извлечение номера канала):
+```yaml
+renamer:
+  naming_template: "Sequence_{sequence}_shot_{shot}_take_{take}"
+  suffix: ""
+  extract_from_source: true
+  # Вытягивает "Tr3" из "ZOOM0746_Tr3 [2026-05-28 152751].wav"
+  extract_pattern: "_([Tt]r\\d+)"
+  extract_format: "_{match}"
+```
+
+Исходный файл: `ZOOM0746_Tr3 [2026-05-28 152751].wav`
+→ Новое имя: `Sequence_1_shot_3_take_5_KinoBlia_Tr3.wav`
+
+**Формат: число после второго подчеркивания** (например, последовательность дублей):
+```yaml
+renamer:
+  naming_template: "Sequence_{sequence}_shot_{shot}_take_{take}"
+  extract_from_source: true
+  # Вытягивает "12" из "260603_0001_12.wav"
+  extract_pattern: "^[^_]*_[^_]*_(.+?)$"
+  extract_format: "_TR{match}"
+```
+
+Исходный файл: `260603_0001_12.wav`
+→ Новое имя: `Sequence_1_shot_3_take_5_TR12.wav`
+
+### Параметры renamer в config.yaml:
+
+| Параметр | Описание | Примеры |
+|---|---|---|
+| `naming_template` | Шаблон имени с плейсхолдерами `{sequence}`, `{shot}`, `{take}` | `"Sequence_{sequence}_shot_{shot}_take_{take}"` |
+| `suffix` | Суффикс, добавляемый после шаблона | `"KinoBlia"` |
+| `extract_from_source` | Включить извлечение из оригинального имени (`true`/`false`) | `false` |
+| `extract_pattern` | Regex-паттерн для извлечения | `"_([Tt]r\\d+)"` |
+| `extract_format` | Формат добавления извлеченной части (`{match}` = найденное значение) | `"_{match}"` или `"_TR{match}"` |
+
+---
+
 ## Тесты
 
 Все тесты работают на моках — **скачивание моделей не требуется**.
@@ -207,6 +255,7 @@ uv run pytest tests/test_pipeline.py -v
 | `cutter.py` | `tests/test_cutter.py` | выбор лучшего хита, обрезка через ffmpeg, ошибка на пустых хитах |
 | `scene_parser.py` | `tests/test_scene_parser.py` | загрузка конфига, Pydantic-валидация, parse_scene с моками, CLI |
 | `pipeline.py` | `tests/test_pipeline.py` | сквозной пайплайн с моками (с хлопками и без), CLI, сохранение результатов |
+| `pipeline.py` (renamer) | `tests/test_renamer.py` | загрузка конфига renamer, переименование файлов, конфликты имен, извлечение из оригинального имени (ZOOM, кастомные regex) |
 
 ---
 

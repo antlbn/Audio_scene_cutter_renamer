@@ -87,3 +87,19 @@ renamer:
   naming_template: "Sequence_{sequence}_shot_{shot}_dubl_{take}"
   # Suffix appended to the rendered filename as-is.
   suffix: "KinoBlia"
+  
+  # Extract part of the original filename and append to the new name.
+  # Useful for preserving channel/track info from source files.
+  extract_from_source: false
+  
+  # Regex pattern to extract from original filename (before extension).
+  # Examples:
+  #   - ZOOM format: "_([Tt]r\\d+)" captures "Tr3" from "ZOOM0746_Tr3 [2026-05-28 152751].wav"
+  #   - After 2nd underscore: "^[^_]*_[^_]*_(.+?)$" captures "12" from "260603_0001_12.wav"
+  extract_pattern: "_([Tt]r\\d+)"
+  
+  # Format string for the extracted value. Use {match} as placeholder.
+  # Examples:
+  #   - "_{match}" results in "_Tr3"
+  #   - "_TR{match}" results in "_TRTr3"
+  extract_format: "_{match}"
