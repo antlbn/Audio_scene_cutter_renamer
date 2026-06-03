@@ -212,13 +212,23 @@ def run_delete_whisper_weights_ui(inquirer: Any, cache_dir: str | Path) -> None:
         delete_cached_whisper_model(model, cache_dir)
 
 
-def build_renamer_menu_choices(*, naming_template: str, suffix: str) -> list[dict[str, str]]:
+def build_renamer_menu_choices(
+    *,
+    naming_template: str,
+    suffix: str,
+    extract_from_source: bool,
+    extract_pattern: str,
+    extract_format: str,
+) -> list[dict[str, str]]:
     suffix_display = suffix if suffix else "<off>"
+    extract_status = "ON" if extract_from_source else "OFF"
     return [
         {"name": f"Naming template: {naming_template}", "value": "template"},
         {"name": f"Suffix: {suffix_display}", "value": "suffix"},
+        {"name": f"Extract from source: {extract_status}", "value": "extract_from_source"},
+        {"name": f"Extract pattern: {extract_pattern}", "value": "extract_pattern"},
+        {"name": f"Extract format: {extract_format}", "value": "extract_format"},
         {"name": "Back", "value": MENU_BACK},
-        {'name': f"Audio_Track_Suffix {extract_from_source}", "value": "suffix"},
     ]
 
 
@@ -227,6 +237,9 @@ def save_renamer_settings(
     *,
     naming_template: str,
     suffix: str,
+    extract_from_source: bool,
+    extract_pattern: str,
+    extract_format: str,
 ) -> None:
     config_file = Path(config_path)
     yaml = build_yaml_parser()
@@ -241,6 +254,9 @@ def save_renamer_settings(
 
     renamer_config["naming_template"] = naming_template
     renamer_config["suffix"] = suffix
+    renamer_config["extract_from_source"] = extract_from_source
+    renamer_config["extract_pattern"] = extract_pattern
+    renamer_config["extract_format"] = extract_format
 
     with config_file.open("w", encoding="utf-8") as file:
         yaml.dump(data, file)
@@ -255,6 +271,9 @@ def run_renamer_settings_ui(inquirer: Any, config_path: Path, data: MutableMappi
 
     naming_template = str(renamer_config.get("naming_template", "Sequence_{sequence}_shot_{shot}_take_{take}"))
     suffix = str(renamer_config.get("suffix", ""))
+    extract_from_source = bool(renamer_config.get("extract_from_source", False))
+    extract_pattern = str(renamer_config.get("extract_pattern", "_([Tt]r\\d+)"))
+    extract_format = str(renamer_config.get("extract_format", "_{match}"))
 
     while True:
         action = select_menu_item(
@@ -263,6 +282,9 @@ def run_renamer_settings_ui(inquirer: Any, config_path: Path, data: MutableMappi
             choices=build_renamer_menu_choices(
                 naming_template=naming_template,
                 suffix=suffix,
+                extract_from_source=extract_from_source,
+                extract_pattern=extract_pattern,
+                extract_format=extract_format,
             ),
             default=MENU_BACK,
         )
@@ -281,11 +303,36 @@ def run_renamer_settings_ui(inquirer: Any, config_path: Path, data: MutableMappi
                 message="Suffix",
                 default=suffix,
             )
+        elif action == "extract_from_source":
+            extract_from_source = select_menu_item(
+                inquirer,
+                message="Extract from source filename",
+                choices=[
+                    {"name": "ON", "value": True},
+                    {"name": "OFF", "value": False},
+                ],
+                default=extract_from_source,
+            )
+        elif action == "extract_pattern":
+            extract_pattern = select_text_item(
+                inquirer,
+                message="Regex pattern to extract (e.g., '_([Tt]r\\\\d+)' for ZOOM)",
+                default=extract_pattern,
+            )
+        elif action == "extract_format":
+            extract_format = select_text_item(
+                inquirer,
+                message="Format for extracted value (use {match} as placeholder, e.g., '_{match}')",
+                default=extract_format,
+            )
 
     save_renamer_settings(
         config_path,
         naming_template=naming_template,
         suffix=suffix,
+        extract_from_source=extract_from_source,
+        extract_pattern=extract_pattern,
+        extract_format=extract_format,
     )
 
 
