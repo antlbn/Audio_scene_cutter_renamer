@@ -8,8 +8,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-import clapper
-import preprocessor
+from . import clapper
+from . import preprocessor
 
 
 @dataclass(slots=True)

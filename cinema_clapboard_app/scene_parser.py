@@ -15,8 +15,7 @@ import yaml
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
-from config_utils import get_user_config_path
-from config_utils import load_env_file, merge_config_dict, resolve_path
+from .config_utils import load_env_file, merge_config_dict, resolve_path
 
 # Set up logging
 LOGGER = logging.getLogger("scene_parser")
@@ -66,7 +65,7 @@ class SceneParseResult:
 
 
 def _default_config_path() -> Path:
-    return get_user_config_path()
+    return Path(__file__).with_name("config.yaml")
 
 
 

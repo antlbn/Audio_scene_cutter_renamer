@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "audio-scene-cutter-renamer"
 version = "0.1.0"
@@ -19,10 +23,14 @@ dependencies = [
   "ruamel.yaml",
 ]
 
-[tool.uv]
-package = false
 
 [dependency-groups]
 dev = [
     "ruff>=0.15.15",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["cinema_clapboard_app"]
+
+[project.scripts]
+cinema-clapboard = "cinema_clapboard_app.batch_runner:main"

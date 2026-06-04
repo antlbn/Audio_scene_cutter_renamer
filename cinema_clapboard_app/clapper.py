@@ -27,10 +27,8 @@ import torch
 import torchaudio
 import yaml
 
-import preprocessor
-from config_utils import load_env_file, merge_config_dict, resolve_path
-from config_utils import get_user_config_path
-
+from . import preprocessor
+from .config_utils import load_env_file, merge_config_dict, resolve_path
 
 LOGGER = logging.getLogger("clapper")
 
@@ -141,7 +139,7 @@ _RUNTIME_CACHE: dict[tuple[str, str, str], ClapperRuntime] = {}
 
 
 def _default_config_path() -> Path:
-    return get_user_config_path()
+    return Path(__file__).with_name("config.yaml")
 
 
 

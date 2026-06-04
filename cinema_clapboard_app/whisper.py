@@ -16,11 +16,9 @@ import torch
 import yaml
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
-import cutter
-import preprocessor
-from config_utils import load_env_file, merge_config_dict, resolve_path
-
-from config_utils import get_user_config_path
+from . import cutter
+from . import preprocessor
+from .config_utils import load_env_file, merge_config_dict, resolve_path
 
 
 LOGGER = logging.getLogger("whisper")
@@ -85,8 +83,7 @@ _RUNTIME_CACHE: dict[tuple[str, str, str], WhisperRuntime] = {}
 
 
 def _default_config_path() -> Path:
-    return get_user_config_path()
-
+    return Path(__file__).with_name("config.yaml")
 
 
 def _get_device(device_name: str) -> torch.device:

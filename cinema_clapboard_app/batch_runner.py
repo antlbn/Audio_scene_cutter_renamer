@@ -12,7 +12,6 @@
 
 from __future__ import annotations
 
-from config_utils import get_user_config_path
 import argparse
 import logging
 import sys
@@ -20,8 +19,9 @@ from pathlib import Path
 
 import yaml
 
-import pipeline
-import presentator_cli
+from . import pipeline
+from . import presentator_cli
+from .config_utils import get_user_config_path
 
 LOGGER = logging.getLogger("batch_runner")
 
@@ -287,13 +287,21 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "path",
         type=Path,
-        help="Путь к аудио-файлу или директории с аудио-файлами.",
+        nargs="?",
+        default=None,
+        help="Путь к аудио-файлу или директории с аудио-файлами. (Опционально, если используется --settings)",
     )
     parser.add_argument(
         "--config",
         type=Path,
         default=get_user_config_path(),
         help="Путь к config.yaml.",
+    )
+    parser.add_argument(
+        "--settings",
+        "-settings",
+        action="store_true",
+        help="Открыть интерактивный UI для настройки программы.",
     )
     parser.add_argument(
         "--json",
@@ -319,8 +327,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
 
-    path: Path = args.path
+    if args.settings:
+        from . import settings
+        # settings.py main() doesn't return anything or return 0, we can just call it
+        settings.main()
+        return 0
+
+    path: Path | None = args.path
     config_path: Path = args.config
+
+    if path is None:
+        print("Ошибка: путь не указан. Укажите файл/папку или используйте --settings", file=sys.stderr)
+        return 1
 
     if not path.exists():
         print(f"Ошибка: путь не существует: {path}", file=sys.stderr)

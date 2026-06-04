@@ -14,8 +14,6 @@ import torch
 import torchaudio
 import yaml
 
-from config_utils import get_user_config_path
-
 
 
 DEFAULT_SAMPLE_RATE = 16_000
@@ -47,7 +45,8 @@ class StandardizedAudio:
 
 
 def _default_config_path() -> Path:
-    return get_user_config_path()
+    return Path(__file__).with_name("config.yaml")
+
 
 def _merge_config_dict(defaults: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
     merged: dict[str, Any] = dict(defaults)

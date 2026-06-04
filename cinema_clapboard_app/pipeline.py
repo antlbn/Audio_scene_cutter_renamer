@@ -4,7 +4,6 @@ Runs preprocessor, clapper detector, cutter, whisper transcriber, and LLM scene 
 then aggregates the metadata into a single structured result.
 """
 
-from config_utils import get_user_config_path
 from __future__ import annotations
 
 import argparse
@@ -16,12 +15,12 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field
 
-import clapper
-import cutter
-import presentator_cli
-import preprocessor
-import scene_parser
-import whisper
+from . import clapper
+from . import cutter
+from . import presentator_cli
+from . import preprocessor
+from . import scene_parser
+from . import whisper
 
 LOGGER = logging.getLogger("pipeline")
 DEFAULT_RENAMER_TEMPLATE = "Sequence_{sequence}_shot_{shot}_take_{take}"
@@ -32,7 +31,7 @@ DEFAULT_EXTRACT_FORMAT = "_{match}"
 
 
 def load_renamer_config(config_path: str | Path | None = None) -> dict[str, str | bool]:
-    config_file = Path(config_path) if config_path is not None else get_user_config_path()
+    config_file = Path(config_path) if config_path is not None else Path("config.yaml")
     default_config = {
         "naming_template": DEFAULT_RENAMER_TEMPLATE,
         "suffix": DEFAULT_RENAMER_SUFFIX,

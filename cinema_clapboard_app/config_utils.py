@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Any
+import shutil
 
 _DEFAULT_ENV_PLACEHOLDERS = {
     "your_openrouter_key_here",
@@ -53,3 +54,21 @@ def load_env_file(env_path: Path) -> None:
 
         if key not in os.environ or os.environ[key] in _DEFAULT_ENV_PLACEHOLDERS:
             os.environ[key] = value
+
+def get_user_config_path() -> Path:
+    home_dir = Path.home()
+    app_dir = home_dir / ".cinema_clapboard"
+    user_config = app_dir / "config.yaml"
+    
+    if not user_config.exists():
+        app_dir.mkdir(parents=True, exist_ok=True)
+
+        default_config = Path(__file__).parent / "default_config.yaml"
+
+        if default_config.exists():
+            shutil.copy2(default_config, user_config)
+            print(f'Config created in: {user_config}')
+        else:
+            user_config.write_text("renamer:\n  rename: true\n")
+            
+    return user_config

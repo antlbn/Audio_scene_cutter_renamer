@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from config_utils import resolve_path
+from .config_utils import resolve_path
 
 WHISPER_MODEL_CHOICES = [
     "openai/whisper-tiny",
