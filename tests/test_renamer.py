@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 
-import pipeline
+from cinema_clapboard_app import pipeline
+
 
 
 def test_load_renamer_template_defaults(tmp_path):

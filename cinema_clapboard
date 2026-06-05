@@ -36,7 +36,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         -settings|--settings)
             SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-            exec uv run --project "$SCRIPT_DIR" python "$SCRIPT_DIR/settings.py" --config "$SCRIPT_DIR/config.yaml"
+            exec uv run --project "$SCRIPT_DIR" python -m cinema_clapboard_app.cli --settings
             ;;
         -rename|--rename)
             RENAME=true
@@ -92,4 +92,4 @@ fi
 # Run the unified orchestrator inside the virtual environment using uv run.
 # SCRIPT_DIR ensures this works when called from any directory.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec uv run --project "$SCRIPT_DIR" python "$SCRIPT_DIR/batch_runner.py" --config "$SCRIPT_DIR/config.yaml" "$INPUT_PATH" "${ARGS[@]}"
+exec uv run --project "$SCRIPT_DIR" python -m cinema_clapboard_app.cli "$INPUT_PATH" "${ARGS[@]}"

@@ -12,7 +12,6 @@ Contract:
 """
 
 import json
-import sys
 from typing import Any
 
 

@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 
 import pytest
 
-import presentator_cli
+from cinema_clapboard_app import presentator_cli
+
 
 
 @pytest.fixture

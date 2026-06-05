@@ -18,7 +18,7 @@ from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
 from . import cutter
 from . import preprocessor
-from .config_utils import load_env_file, merge_config_dict, resolve_path
+from .config_utils import get_user_config_path, get_user_env_path, load_env_file, merge_config_dict, resolve_path
 
 
 LOGGER = logging.getLogger("whisper")
@@ -162,7 +162,7 @@ def _normalize_chunks(raw_chunks: Any) -> list[WhisperChunk]:
 def load_runtime(config: WhisperConfig, *, cache_base_dir: Path | None = None) -> WhisperRuntime:
     """Load and cache the Whisper pipeline."""
 
-    cache_root = cache_base_dir or Path(__file__).resolve().parent
+    cache_root = cache_base_dir or get_user_config_path().parent
     cache_dir = resolve_path(config.cache_dir, cache_root)
     device = _get_device(config.device)
     cache_key = (config.model_id, str(cache_dir), str(device))
@@ -170,7 +170,7 @@ def load_runtime(config: WhisperConfig, *, cache_base_dir: Path | None = None) -
     if cache_key in _RUNTIME_CACHE:
         return _RUNTIME_CACHE[cache_key]
 
-    load_env_file(Path(__file__).with_name(".env"))
+    load_env_file(get_user_env_path())
 
     print(f"[whisper] loading model: {config.model_id}", file=sys.stderr)
     processor = AutoProcessor.from_pretrained(config.model_id, cache_dir=str(cache_dir))

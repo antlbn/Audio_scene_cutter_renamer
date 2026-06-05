@@ -5,8 +5,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import pipeline
-from pipeline import PipelineResult
+from cinema_clapboard_app import pipeline
+from cinema_clapboard_app.pipeline import PipelineResult
+
 
 
 @pytest.fixture
@@ -72,11 +73,13 @@ def test_run_pipeline_with_clapper_hits(
     mock_cut_res.clip_start_seconds = 2.5
     mock_cut_res.clip_end_seconds = 4.5
 
-    with patch("preprocessor.standardize_audio", return_value=fake_std_audio), \
-         patch("clapper.analyze_audio", return_value=fake_clapper_result), \
-         patch("cutter.cut_audio_by_clapper", return_value=mock_cut_res), \
-         patch("whisper.transcribe_audio", return_value=fake_whisper_result), \
-         patch("scene_parser.parse_scene", return_value=fake_scene_parser_result):
+    with patch("cinema_clapboard_app.preprocessor.standardize_audio", return_value=fake_std_audio), \
+         patch("cinema_clapboard_app.clapper.load_runtime", return_value=MagicMock()), \
+         patch("cinema_clapboard_app.whisper.load_runtime", return_value=MagicMock()), \
+         patch("cinema_clapboard_app.clapper.analyze_audio", return_value=fake_clapper_result), \
+         patch("cinema_clapboard_app.cutter.cut_audio_by_clapper", return_value=mock_cut_res), \
+         patch("cinema_clapboard_app.whisper.transcribe_audio", return_value=fake_whisper_result), \
+         patch("cinema_clapboard_app.scene_parser.parse_scene", return_value=fake_scene_parser_result):
 
         result = pipeline.run_pipeline(dummy_file)
 
@@ -110,11 +113,13 @@ def test_run_pipeline_without_clapper_hits(
     fake_clapper_no_hits = MagicMock()
     fake_clapper_no_hits.best_scores = []
 
-    with patch("preprocessor.standardize_audio", return_value=fake_std_audio), \
-         patch("clapper.analyze_audio", return_value=fake_clapper_no_hits), \
-         patch("cutter.cut_audio_by_clapper") as mock_cutter, \
-         patch("whisper.transcribe_audio", return_value=fake_whisper_result), \
-         patch("scene_parser.parse_scene", return_value=fake_scene_parser_result):
+    with patch("cinema_clapboard_app.preprocessor.standardize_audio", return_value=fake_std_audio), \
+         patch("cinema_clapboard_app.clapper.load_runtime", return_value=MagicMock()), \
+         patch("cinema_clapboard_app.whisper.load_runtime", return_value=MagicMock()), \
+         patch("cinema_clapboard_app.clapper.analyze_audio", return_value=fake_clapper_no_hits), \
+         patch("cinema_clapboard_app.cutter.cut_audio_by_clapper") as mock_cutter, \
+         patch("cinema_clapboard_app.whisper.transcribe_audio", return_value=fake_whisper_result), \
+         patch("cinema_clapboard_app.scene_parser.parse_scene", return_value=fake_scene_parser_result):
 
         result = pipeline.run_pipeline(dummy_file)
 
@@ -158,7 +163,7 @@ def test_pipeline_cli_output(tmp_path, capsys):
         llm_announcement="сцена один дубль четыре"
     )
 
-    with patch("pipeline.run_pipeline", return_value=mock_result):
+    with patch("cinema_clapboard_app.pipeline.run_pipeline", return_value=mock_result):
         # 1. Plain stdout format
         exit_code = pipeline.main([str(dummy_file)])
         assert exit_code == 0

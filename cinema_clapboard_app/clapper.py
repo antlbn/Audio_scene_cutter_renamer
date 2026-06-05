@@ -28,7 +28,7 @@ import torchaudio
 import yaml
 
 from . import preprocessor
-from .config_utils import load_env_file, merge_config_dict, resolve_path
+from .config_utils import get_user_config_path, get_user_env_path, load_env_file, merge_config_dict, resolve_path
 
 LOGGER = logging.getLogger("clapper")
 
@@ -308,10 +308,12 @@ def _get_device(device_name: str) -> torch.device:
 # ---------------------------------------------------------------------------
 
 
-def load_runtime(config: ClapperConfig, *, cache_base_dir: Path | None = None) -> ClapperRuntime:
-    """Load and cache the CLAP model + processor."""
+def load_runtime(
+    config: ClapperConfig, *, cache_base_dir: Path | None = None
+) -> ClapperRuntime:
+    """Load and cache the CLAP pipeline."""
 
-    cache_root = cache_base_dir or Path(__file__).resolve().parent
+    cache_root = cache_base_dir or get_user_config_path().parent
     cache_dir = resolve_path(config.audio_model.cache_dir, cache_root)
     device = _get_device(config.audio_model.device)
     cache_key = (config.audio_model.model_name, str(cache_dir), str(device))
@@ -319,7 +321,7 @@ def load_runtime(config: ClapperConfig, *, cache_base_dir: Path | None = None) -
     if cache_key in _RUNTIME_CACHE:
         return _RUNTIME_CACHE[cache_key]
 
-    load_env_file(Path(__file__).with_name(".env"))
+    load_env_file(get_user_env_path())
 
     print(f"[clapper] loading model: {config.audio_model.model_name}", file=sys.stderr)
     from transformers import ClapModel, ClapProcessor

@@ -16,9 +16,12 @@ from openai import OpenAI
 from pydantic import BaseModel, Field
 
 from .config_utils import load_env_file, merge_config_dict, resolve_path
+from .config_utils import get_user_env_path
 
 # Set up logging
 LOGGER = logging.getLogger("scene_parser")
+
+project_root = Path(__file__).parent
 
 DEFAULT_MODEL = "google/gemini-3.1-flash-lite"
 DEFAULT_API_BASE = "https://openrouter.ai/api/v1"
@@ -151,8 +154,7 @@ def parse_scene(
         text = str(whisper_result)
 
     # Load environment variables
-    project_root = Path(__file__).resolve().parent
-    load_env_file(project_root / ".env")
+    load_env_file(get_user_env_path())
 
     # Get API key
     api_key = os.environ.get(config.api_key_env)

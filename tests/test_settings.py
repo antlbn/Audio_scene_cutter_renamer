@@ -3,7 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import settings
+from cinema_clapboard_app import settings
+
 
 
 def test_save_whisper_settings_updates_existing_keys_and_keeps_comments(tmp_path: Path):

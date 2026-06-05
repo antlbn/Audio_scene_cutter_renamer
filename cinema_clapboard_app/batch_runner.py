@@ -207,7 +207,7 @@ def _run_batch(
     """Batch-режим: сканировать директорию, TUI, обработать выбранное. Вернуть exit code."""
     files = _scan_audio_files(directory)
 
-    print(f"\n🎬  cinema_clapboard — batch mode", flush=True)
+    print("\n🎬  cinema_clapboard — batch mode", flush=True)
     print(f"📁  {directory.resolve()}", flush=True)
 
     if not files:
@@ -260,7 +260,7 @@ def _run_batch(
             success_count += 1
         else:
             error_count += 1
-            print(f"       ↳ пропущен, продолжаем\n", file=sys.stderr)
+            print("       ↳ пропущен, продолжаем\n", file=sys.stderr)
 
     # ── Финальная сводка ────────────────────────────────────────────────────
     print()
@@ -276,69 +276,11 @@ def _run_batch(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Единый оркестратор cinema_clapboard.\n"
-            "Принимает один файл или директорию.\n"
-            "При директории — показывает TUI для выбора файлов."
-        ),
-    )
-    parser.add_argument(
-        "path",
-        type=Path,
-        nargs="?",
-        default=None,
-        help="Путь к аудио-файлу или директории с аудио-файлами. (Опционально, если используется --settings)",
-    )
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=get_user_config_path(),
-        help="Путь к config.yaml.",
-    )
-    parser.add_argument(
-        "--settings",
-        "-settings",
-        action="store_true",
-        help="Открыть интерактивный UI для настройки программы.",
-    )
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Вывести сырой JSON вместо человекочитаемого резюме.",
-    )
-    parser.add_argument(
-        "--save",
-        action="store_true",
-        help="Сохранить результат в {имя_файла}_result.json рядом с файлом.",
-    )
-    parser.add_argument(
-        "--rename",
-        "-rename",
-        action="store_true",
-        help="Переименовать исходный файл по схеме sequence/shot/take.",
-    )
-    return parser
-
-
-def main(argv: list[str] | None = None) -> int:
+def run(args: argparse.Namespace) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
-    parser = build_arg_parser()
-    args = parser.parse_args(argv)
 
-    if args.settings:
-        from . import settings
-        # settings.py main() doesn't return anything or return 0, we can just call it
-        settings.main()
-        return 0
-
-    path: Path | None = args.path
+    path: Path = args.path
     config_path: Path = args.config
-
-    if path is None:
-        print("Ошибка: путь не указан. Укажите файл/папку или используйте --settings", file=sys.stderr)
-        return 1
 
     if not path.exists():
         print(f"Ошибка: путь не существует: {path}", file=sys.stderr)
@@ -367,7 +309,3 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Ошибка: {path} — не файл и не директория.", file=sys.stderr)
     return 1
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

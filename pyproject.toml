@@ -13,14 +13,15 @@ dependencies = [
   "pyyaml",
   "pytest",
   "soundfile",
-  "torch==2.2.2",
-  "torchaudio==2.2.2",
+  "torch>=2.2.2",
+  "torchaudio>=2.2.2",
   "transformers<5",
   "ipykernel",
   "InquirerPy",
   "openai>=1.0",
   "pydantic>=2.0",
   "ruamel.yaml",
+  "static-ffmpeg",
 ]
 
 
@@ -33,4 +34,28 @@ dev = [
 packages = ["cinema_clapboard_app"]
 
 [project.scripts]
-cinema-clapboard = "cinema_clapboard_app.batch_runner:main"
+cinema-clapboard = "cinema_clapboard_app.cli:main"
+
+# ── PyTorch index routing ────────────────────────────────────────────────────
+# macOS (Apple Silicon / Intel): CPU-only — CUDA не поддерживается.
+# Linux / Windows: CUDA 12.1 — если нет CUDA-карты, torch просто
+# упадёт в CPU через device=auto. Сменить на cu118/cu124 при необходимости.
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
+  { index = "pytorch-cu121", marker = "sys_platform != 'darwin'" },
+]
+torchaudio = [
+  { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
+  { index = "pytorch-cu121", marker = "sys_platform != 'darwin'" },
+]
+
+[[tool.uv.indexes]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.indexes]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true

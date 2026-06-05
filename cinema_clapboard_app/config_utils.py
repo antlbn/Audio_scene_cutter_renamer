@@ -56,6 +56,14 @@ def load_env_file(env_path: Path) -> None:
             os.environ[key] = value
 
 def get_user_config_path() -> Path:
+    # Ensure ffmpeg is available: static-ffmpeg provides a bundled binary and
+    # adds it to PATH so shutil.which('ffmpeg') finds it on all platforms.
+    try:
+        import static_ffmpeg
+        static_ffmpeg.add_paths()
+    except ImportError:
+        pass  # System ffmpeg will be used if available
+
     home_dir = Path.home()
     app_dir = home_dir / ".cinema_clapboard"
     user_config = app_dir / "config.yaml"
@@ -72,3 +80,23 @@ def get_user_config_path() -> Path:
             user_config.write_text("renamer:\n  rename: true\n")
             
     return user_config
+
+
+def get_user_env_path() -> Path:
+    home_dir = Path.home()
+    app_dir = home_dir / ".cinema_clapboard"
+    user_env = app_dir / ".env"
+    
+    if not user_env.exists():
+        app_dir.mkdir(parents=True, exist_ok=True)
+
+        default_env = Path(__file__).parent / "default_env"
+
+        if default_env.exists():
+            shutil.copy2(default_env, user_env)
+            print(f'🔑 Создан стандартный файл ключей: {user_env}')
+        else:
+            # Fallback if default_env somehow missing
+            user_env.write_text("# YOUR_OPENAI_API_KEY=\n")
+            
+    return user_env

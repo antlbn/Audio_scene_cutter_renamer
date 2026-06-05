@@ -23,12 +23,21 @@ WHISPER_MODEL_CHOICES = [
 WHISPER_TASK_CHOICES = ["transcribe", "translate"]
 
 WHISPER_LANGUAGE_CHOICES = [
-    "french",
-    "english",
-    "russian",
-    "ru",
-    "fr",
-    "en",
+    # European / common production languages
+    "fr",   # French
+    "en",   # English
+    "ru",   # Russian
+    "de",   # German
+    "es",   # Spanish
+    "it",   # Italian
+    "pl",   # Polish
+    "nl",   # Dutch
+    "pt",   # Portuguese
+    "uk",   # Ukrainian
+    # Asian
+    "ja",   # Japanese
+    "zh",   # Chinese
+    "ko",   # Korean
 ]
 
 MENU_LANGUAGE = "language"

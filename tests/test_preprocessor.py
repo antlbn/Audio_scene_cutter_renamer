@@ -7,7 +7,8 @@ import numpy as np
 import pytest
 import torch
 
-import preprocessor
+from cinema_clapboard_app import preprocessor
+
 
 
 def test_load_config_fills_defaults(tmp_path: Path):

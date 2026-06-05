@@ -1,188 +1,190 @@
-# Audio Scene Cutter & Renamer
+# Audio Scene Cutter & Renamer — `cinema_clapboard`
 
 Утилита для автоматической обработки аудиофайлов со съёмочной площадки:
-распознавание хлопушки, транскрибация речи, парсинг номера сцены/дубля через LLM.
-
----
-
-## Требования
-
-- **Python** ≥ 3.12
-- **uv** — менеджер зависимостей ([установка](https://docs.astral.sh/uv/getting-started/installation/))
-- **ffmpeg** — для декодирования AAC/M4A и работы `preprocessor.py`
-- *(опционально)* **CUDA** — ускорение моделей CLAP / Whisper на GPU
+распознавание хлопушки (CLAP), транскрибация речи (Whisper), парсинг сцены/дубля через LLM.
 
 ---
 
 ## Установка
 
+### Шаг 1 — Установить uv
+
+**macOS / Linux:**
 ```bash
-# Клонируем и ставим зависимости
-cd Audio_scene_cutter_renamer
-uv sync
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-### Hugging Face токен
-
-Модели CLAP и Whisper скачиваются с Hugging Face.
-Скопируйте `.env` и вставьте свой токен:
-
-```bash
-cp .env .env.local   # или отредактируйте .env напрямую
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
+> После установки перезапусти терминал, чтобы `uv` появился в PATH.
+
+---
+
+### Шаг 2 — Установить cinema-clapboard
+
+```bash
+uv tool install git+https://github.com/ВАШ_НИК/Audio_scene_cutter_renamer
+```
+
+Это единственная команда, которая нужна пользователю. `uv` сам:
+- скачает Python нужной версии (≥ 3.12) если его нет
+- создаст изолированное окружение
+- поставит все зависимости включая CLAP, Whisper, PyTorch
+- зарегистрирует команду `cinema-clapboard` в PATH
+
+> **Windows:** если `cinema-clapboard` не появился в CMD/PowerShell сразу,
+> выполни `uv tool update-shell` и перезапусти терминал.
+
+---
+
+### ffmpeg
+
+**Устанавливается автоматически** — пакет `static-ffmpeg` входит в зависимости
+и при первом запуске скачивает статический бинарник ffmpeg для твоей платформы.
+Ничего дополнительно делать не нужно.
+
+> Если на машине уже установлен системный ffmpeg — он будет использован вместо bundled.
+
+---
+
+## Настройка API-ключей
+
+Конфиг и ключи хранятся в `~/.cinema_clapboard/` (создаётся автоматически при первом запуске).
+
+### OpenRouter API Key — нужен для LLM-парсинга сцены/дубля
+
+```bash
+cinema-clapboard --settings
+# → выбрать "LLM API Key Manager" → "Set / Edit OpenRouter API Key"
+```
+
+Или вручную в файл `~/.cinema_clapboard/.env`:
+```dotenv
+OPENROUTER_API_KEY=ваш_ключ_openrouter_здесь
+```
+
+### Hugging Face Token — нужен для скачивания CLAP и Whisper
+
+В тот же файл `~/.cinema_clapboard/.env`:
 ```dotenv
 HUGGINGFACE_HUB_TOKEN=hf_ваш_токен
 ```
 
 ---
 
-## Use Case 1 — Распознавание хлопушки на одном файле
-
-Модуль `clapper.py` использует CLAP-модель (text ↔ audio similarity) для поиска хлопушки.
-При первом запуске модель скачивается (~600 MB) в `.cache/clap`.
+## Быстрый старт
 
 ```bash
-# базовый запуск — вывод в человекочитаемом формате
-uv run python clapper.py claps/тест.wav
+# Обработать один файл (распознать хлопок → обрезать → транскрибировать → распарсить)
+cinema-clapboard audio.wav
 
-# вывод JSON
-uv run python clapper.py claps/тест.wav --json
+# Обработать и переименовать
+cinema-clapboard audio.wav --rename
 
-# debug — показывает каждый hit в stderr
-uv run python clapper.py claps/тест.wav --debug
+# Обработать папку — откроется TUI с выбором файлов
+cinema-clapboard ./recordings/ --rename
 
-# свой конфиг
-uv run python clapper.py claps/тест.wav --config config.yaml --debug --json
-```
-
-**Пример вывода (human-readable):**
-```
-🎬 Clapper summary
-📁 File: тест.wav
-🎚 Threshold: 0.280
-🎯 Hits: 1
-  1. ⏱ 2.50s | score 0.421 | sharp clap sound
-     🥇 sharp clap sound 0.421, loud click 0.310
-```
-
-Настройки в `config.yaml`, секция `clapper`:
-- `audio_model.threshold` — минимальный score (по умолчанию `0.28`)
-- `text_search.text_keys` — текстовые ключи для CLAP-сопоставления
-- `clip.post_hit_seconds` — сколько секунд оставить после хлопка
-
----
-
-## Use Case 2 — Распознавание речи на одном файле
-
-```bash
-# транскрибация (по умолчанию язык ru из config.yaml)
-uv run python whisper.py claps/тест.wav
-
-# JSON-вывод
-uv run python whisper.py claps/тест.wav --json
-
-# другой язык
-uv run python whisper.py claps/тест.wav --language en
-
-# перевод на английский (Whisper автоматом переводит на en)
-uv run python whisper.py claps/тест.wav --task translate
-
-# перевод + JSON
-uv run python whisper.py claps/тест.wav --task translate --json
-```
-
-**Пример вывода (human-readable):**
-```
-🗣 Whisper summary
-📁 File: тест.wav
-🧠 Model: openai/whisper-small
-🌐 Language: ru
-🧾 Task: transcribe
-🕒 Sample rate: 16000
-📝 Text: сцена три дубль два
-🧩 Chunks: 1
-  1. (0.0, 3.2) |  сцена три дубль два
-```
-
-**Флаги:**
-
-| Флаг | По умолчанию | Описание |
-|---|---|---|
-| `--config` | `config.yaml` | Путь к конфигу |
-| `--json` | выкл | Вывод сырого JSON |
-| `--language` | `ru` (из конфига) | Язык распознавания |
-| `--task` | `transcribe` | `transcribe` или `translate` (перевод → en) |
-
-Настройки в `config.yaml`, секция `whisper`:
-- `model_id` — модель Whisper (`openai/whisper-small` по умолчанию)
-- `cache_dir` — куда скачивать модель (`.cache/whisper`)
-- `device` — `auto` / `cpu` / `cuda`
-
----
-
-## Use Case 3 — Извлечение сцены и дубля через LLM (scene_parser.py)
-
-Модуль `scene_parser.py` отправляет транскрибированный текст в LLM через API OpenRouter, извлекает структурированную информацию и валидирует её по Pydantic-схеме `SceneTake`.
-
-Перед запуском убедитесь, что в файле `.env` указан валидный ключ API:
-```dotenv
-OPENROUTER_API_KEY=ваш_ключ_openrouter_здесь
-```
-
-Настройки в `config.yaml`, секция `scene_parser`:
-* `model` — модель на OpenRouter (по умолчанию `google/gemini-3.1-flash-lite`).
-* `scene_description` и `take_description` — текстовые инструкции, передаваемые в LLM для гибкой настройки формата извлечения сцены и дубля.
-
-Запуск модуля в терминале напрямую:
-```bash
-# базовый запуск (human-readable вывод)
-uv run python scene_parser.py "сцена тридцать два дубль пять"
-
-# JSON-вывод (удобно для скриптов)
-uv run python scene_parser.py "сцена тридцать два дубль пять" --json
+# Настройки
+cinema-clapboard --settings
 ```
 
 ---
 
-## Use Case 4 — Сквозной пайплайн обработки (pipeline.py)
+## Use Case 1 — Полный пайплайн
 
-Сводный оркестратор пайплайна `pipeline.py` последовательно прогоняет аудиофайл через все этапы и выводит единый структурированный результат.
+Оркестратор последовательно прогоняет файл через все этапы:
 
-**Как это работает:**
-1. Приведение аудиофайла к стандарту в памяти (`preprocessor.py`).
-2. Поиск хлопка хлопушки в файле (`clapper.py`).
-3. Если хлопок найден — обрезка аудио сразу после него (`cutter.py`). Если хлопок не обнаружен — транскрипция выполняется на полной длине аудиофайла.
-4. Распознавание речи на основе полученного аудиофрагмента (`whisper.py`).
-5. Извлечение структурированной сцены и дубля через LLM (`scene_parser.py`).
+1. **Preprocessor** — стандартизация аудио в памяти.
+2. **Clapper** — поиск хлопка (CLAP-модель, ~600 MB, скачивается при первом запуске).
+3. **Cutter** — обрезка после хлопка. Если хлопок не найден — транскрибируется весь файл.
+4. **Whisper** — распознавание речи.
+5. **Scene Parser** — извлечение сцены/дубля через LLM.
 
-Запуск пайплайна:
 ```bash
-# запуск с красивым текстовым выводом всей метаинформации
-uv run python pipeline.py claps/тест.wav
+# Базовый запуск
+cinema-clapboard claps/тест.wav
 
-# вывод результатов в формате JSON
-uv run python pipeline.py claps/тест.wav --json
+# С переименованием
+cinema-clapboard claps/тест.wav --rename
 
-# запуск с сохранением отчета в файл (создаст claps/тест_result.json)
-uv run python pipeline.py claps/тест.wav --save
+# Сохранить результат в JSON рядом с файлом
+cinema-clapboard claps/тест.wav --save
+
+# Вывод сырого JSON (удобно для скриптов)
+cinema-clapboard claps/тест.wav --json
+```
+
+**Пример вывода:**
+```
+🎬  cinema_clapboard
+📁  тест.wav
+────────────────────────────────────────────────────────
+🎚  Clapper     hits: 1 | best: 2.50s (score 0.421)
+✂️   Cut         2.50s → 7.30s
+🗣  Whisper     сцена три дубль два  [fr | transcribe | whisper-small]
+🧠  LLM         seq=None  shot=3  take=2  [gemini-3.1-flash-lite]
+📝  New name    Sequence_None_shot_3_dubl_2.wav
+────────────────────────────────────────────────────────
 ```
 
 ---
 
-## Переименование файлов (renamer) — извлечение информации из оригинального имени
+## Use Case 2 — Пакетная обработка (batch mode)
 
-По умолчанию пайплайн переименовывает файл в формат: `Sequence_{sequence}_shot_{shot}_take_{take}`.
+```bash
+# Указать директорию — откроется TUI с выбором файлов
+cinema-clapboard ./recordings/
 
-Но часто нужно сохранить информацию из оригинального имени файла (например, номер канала ZOOM-рекордера).
-Для этого в `config.yaml` в секции `renamer` есть параметры для **автоматического извлечения и добавления** информации из исходного имени:
+# С переименованием и сохранением JSON для каждого файла
+cinema-clapboard ./recordings/ --rename --save
+```
 
-### Примеры конфигураций:
+При запуске на директории программа:
+1. Рекурсивно находит все аудиофайлы (`.wav .mp3 .flac .aac .m4a .ogg .aif .aiff .bwf .rf64`).
+2. Показывает TUI-список с чекбоксами (Space — снять/поставить, A — все, Enter — запустить).
+3. Спрашивает подтверждение.
+4. Обрабатывает файлы по очереди; ошибка на одном файле не останавливает остальные.
+5. Выводит итоговую сводку.
 
-**Стандарт ZOOM** (извлечение номера канала):
+> **Важно:** CLAP (~600 MB) и Whisper загружаются ровно **один раз** на всю сессию —
+> в отличие от bash-loop, который запускал бы новый процесс на каждый файл.
+
+---
+
+## Use Case 3 — Настройки (`--settings`)
+
+```bash
+cinema-clapboard --settings
+```
+
+Открывает интерактивное меню:
+- **Whisper language** — язык аудиодорожки (`fr`, `en`, `ru`, …).
+- **Whisper mode** — `transcribe` (транскрипция) или `translate` (перевод → en).
+- **Whisper model** — локальная модель (`whisper-tiny` … `whisper-large-v3`).
+- **Rename rendering** — шаблон и суффикс имени файла.
+- **LLM API Key Manager** — установить/сменить ключ OpenRouter.
+- **Delete downloaded Whisper weights** — удалить скачанные веса.
+
+Настройки сохраняются в `~/.cinema_clapboard/config.yaml`.
+
+---
+
+## Переименование файлов
+
+По умолчанию файл переименовывается по шаблону из конфига:
+`Sequence_{sequence}_shot_{shot}_dubl_{take}`.
+
+Часто нужно сохранить информацию из оригинального имени (например, номер канала ZOOM).
+
+### Примеры конфигураций
+
+**ZOOM-рекордер** (извлечение номера канала):
 ```yaml
 renamer:
-  naming_template: "Sequence_{sequence}_shot_{shot}_take_{take}"
+  naming_template: "Sequence_{sequence}_shot_{shot}_dubl_{take}"
   suffix: ""
   extract_from_source: true
   # Вытягивает "Tr3" из "ZOOM0746_Tr3 [2026-05-28 152751].wav"
@@ -190,72 +192,80 @@ renamer:
   extract_format: "_{match}"
 ```
 
-Исходный файл: `ZOOM0746_Tr3 [2026-05-28 152751].wav`
-→ Новое имя: `Sequence_1_shot_3_take_5_KinoBlia_Tr3.wav`
+| Исходный файл | → | Новое имя |
+|---|---|---|
+| `ZOOM0746_Tr3 [2026-05-28 152751].wav` | → | `Sequence_1_shot_3_dubl_5_Tr3.wav` |
 
-**Формат: число после второго подчеркивания** (например, последовательность дублей):
+**Число после второго подчёркивания:**
 ```yaml
 renamer:
-  naming_template: "Sequence_{sequence}_shot_{shot}_take_{take}"
   extract_from_source: true
   # Вытягивает "12" из "260603_0001_12.wav"
   extract_pattern: "^[^_]*_[^_]*_(.+?)$"
   extract_format: "_TR{match}"
 ```
 
-Исходный файл: `260603_0001_12.wav`
-→ Новое имя: `Sequence_1_shot_3_take_5_TR12.wav`
-
-### Параметры renamer в config.yaml:
-
-| Параметр | Описание | Примеры |
+| Исходный файл | → | Новое имя |
 |---|---|---|
-| `naming_template` | Шаблон имени с плейсхолдерами `{sequence}`, `{shot}`, `{take}` | `"Sequence_{sequence}_shot_{shot}_take_{take}"` |
-| `suffix` | Суффикс, добавляемый после шаблона | `"KinoBlia"` |
-| `extract_from_source` | Включить извлечение из оригинального имени (`true`/`false`) | `false` |
-| `extract_pattern` | Regex-паттерн для извлечения | `"_([Tt]r\\d+)"` |
-| `extract_format` | Формат добавления извлеченной части (`{match}` = найденное значение) | `"_{match}"` или `"_TR{match}"` |
+| `260603_0001_12.wav` | → | `Sequence_1_shot_3_dubl_5_TR12.wav` |
+
+### Параметры renamer в config.yaml
+
+| Параметр | Описание |
+|---|---|
+| `naming_template` | Шаблон с плейсхолдерами `{sequence}`, `{shot}`, `{take}` |
+| `suffix` | Фиксированный суффикс после шаблона |
+| `extract_from_source` | `true` / `false` — включить извлечение из исходного имени |
+| `extract_pattern` | Regex-паттерн для извлечения |
+| `extract_format` | Формат: `{match}` = найденное значение |
 
 ---
 
-## Тесты
+## Для разработчиков
+
+### Клонировать и запустить из исходников
+
+```bash
+git clone https://github.com/ВАШ_НИК/Audio_scene_cutter_renamer
+cd Audio_scene_cutter_renamer
+uv sync
+uv pip install -e .
+
+# Запуск
+cinema-clapboard audio.wav
+# или через uv run:
+uv run cinema-clapboard audio.wav
+```
+
+### Тесты
 
 Все тесты работают на моках — **скачивание моделей не требуется**.
 
 ```bash
-# запуск всех тестов
+# Запустить все тесты
 uv run pytest tests/ -v
 
-# только тесты clapper-детекции
+# По модулям
 uv run pytest tests/test_clapper.py -v
-
-# только тесты whisper
 uv run pytest tests/test_whisper.py -v
-
-# только тесты preprocessor
 uv run pytest tests/test_preprocessor.py -v
-
-# только тесты cutter
 uv run pytest tests/test_cutter.py -v
-
-# только тесты scene_parser
 uv run pytest tests/test_scene_parser.py -v
-
-# только тесты pipeline
 uv run pytest tests/test_pipeline.py -v
+uv run pytest tests/test_renamer.py -v
+uv run pytest tests/test_settings.py -v
 ```
-
-### Что покрыто тестами
 
 | Модуль | Файл тестов | Что тестируется |
 |---|---|---|
-| `clapper.py` | `tests/test_clapper.py` | загрузка конфига, ранжирование top-matches, analyze_audio с fake-моделью, CLI |
-| `whisper.py` | `tests/test_whisper.py` | загрузка конфига, транскрибация через StandardizedAudio и CutterResult |
-| `preprocessor.py` | `tests/test_preprocessor.py` | загрузка конфига, standardize_audio, decode_standardized_audio |
-| `cutter.py` | `tests/test_cutter.py` | выбор лучшего хита, обрезка через ffmpeg, ошибка на пустых хитах |
-| `scene_parser.py` | `tests/test_scene_parser.py` | загрузка конфига, Pydantic-валидация, parse_scene с моками, CLI |
-| `pipeline.py` | `tests/test_pipeline.py` | сквозной пайплайн с моками (с хлопками и без), CLI, сохранение результатов |
-| `pipeline.py` (renamer) | `tests/test_renamer.py` | загрузка конфига renamer, переименование файлов, конфликты имен, извлечение из оригинального имени (ZOOM, кастомные regex) |
+| `clapper.py` | `test_clapper.py` | загрузка конфига, ранжирование, analyze_audio с fake-моделью, CLI |
+| `whisper.py` | `test_whisper.py` | загрузка конфига, транскрибация через StandardizedAudio и CutterResult |
+| `preprocessor.py` | `test_preprocessor.py` | загрузка конфига, standardize_audio, decode_standardized_audio |
+| `cutter.py` | `test_cutter.py` | выбор лучшего хита, обрезка через ffmpeg, ошибка на пустых хитах |
+| `scene_parser.py` | `test_scene_parser.py` | загрузка конфига, Pydantic-валидация, parse_scene с моками, CLI |
+| `pipeline.py` | `test_pipeline.py` | сквозной пайплайн с моками (с хлопком и без), CLI, сохранение результатов |
+| `pipeline.py` (renamer) | `test_renamer.py` | переименование файлов, конфликты имён, извлечение из оригинального имени |
+| `settings.py` | `test_settings.py` | Settings UI, менеджер ключей, удаление весов |
 
 ---
 
@@ -263,32 +273,36 @@ uv run pytest tests/test_pipeline.py -v
 
 ```
 .
-├── clapper.py          # CLAP-модель детекции хлопушки
-├── whisper.py           # Транскрибация речи (Whisper)
-├── preprocessor.py      # Стандартизация аудио → AAC in-memory
-├── cutter.py            # Обрезка аудио по метке хлопушки
-├── scene_parser.py      # Извлечение сцены и дубля через LLM
-├── pipeline.py          # Сквозной оркестратор пайплайна
-├── config.yaml          # Единый конфиг для всех модулей
-├── .env                 # Настройки ключей API (не коммитится)
-├── pyproject.toml       # Зависимости (uv)
-├── uv.lock
-├── claps/               # Тестовые аудиофайлы
-├── prompts/             # Шаблоны промптов для LLM
-│   └── scene_parser.md  # Промпт для извлечения сцены/дубля
-└── tests/
-    ├── conftest.py
-    ├── test_clapper.py
-    ├── test_cutter.py
-    ├── test_preprocessor.py
-    ├── test_whisper.py
-    ├── test_scene_parser.py
-    └── test_pipeline.py
+├── cinema_clapboard_app/       # Основной пакет
+│   ├── clapper.py              # CLAP-детекция хлопушки
+│   ├── whisper.py              # Транскрибация речи (Whisper)
+│   ├── preprocessor.py         # Стандартизация аудио → AAC in-memory
+│   ├── cutter.py               # Обрезка аудио по метке хлопушки
+│   ├── scene_parser.py         # Парсинг сцены/дубля через LLM
+│   ├── pipeline.py             # Оркестратор одного файла (lib)
+│   ├── batch_runner.py         # CLI-оркестратор (файл / директория)
+│   ├── cli.py                  # Точка входа: cinema-clapboard
+│   ├── settings.py             # Интерактивный Settings UI (InquirerPy)
+│   ├── presentator_cli.py      # Форматирование результата в терминал
+│   ├── config_utils.py         # Общие утилиты: конфиг, env, пути
+│   ├── default_config.yaml     # Дефолтный конфиг (копируется в ~/.cinema_clapboard/)
+│   ├── default_env             # Дефолтный .env (копируется в ~/.cinema_clapboard/)
+│   └── prompts/
+│       └── scene_parser.md     # Промпт для LLM-парсинга
+├── tests/                      # Тесты (все на моках)
+├── pyproject.toml              # Зависимости и точка входа (uv/hatch)
+└── uv.lock
 ```
+
+**Конфиг пользователя** (`~/.cinema_clapboard/`):
+- `config.yaml` — настройки (создаётся автоматически из `default_config.yaml`)
+- `.env` — API-ключи (создаётся автоматически из `default_env`)
 
 ---
 
 ## Известные нюансы
 
-- Модели скачиваются в `.cache/` внутри проекта (см. `config.yaml`).
-- Обработка идёт **по одному файлу** за раз. Для пакетной обработки планируется bash-скрипт.
+- Модели CLAP (~600 MB) и Whisper скачиваются при первом запуске.
+- ffmpeg (через `static-ffmpeg`) скачивается автоматически при первом запуске если нет системного.
+- При batch-режиме модели загружаются один раз на всю сессию.
+- Поддерживаемые форматы: `.wav .mp3 .flac .aac .m4a .ogg .aif .aiff .bwf .rf64`.

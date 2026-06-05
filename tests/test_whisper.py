@@ -4,10 +4,11 @@ from pathlib import Path
 
 import torch
 
-import clapper
-import cutter
-import preprocessor
-import whisper
+from cinema_clapboard_app import clapper
+from cinema_clapboard_app import cutter
+from cinema_clapboard_app import preprocessor
+from cinema_clapboard_app import whisper
+
 
 
 class FakePipeline:

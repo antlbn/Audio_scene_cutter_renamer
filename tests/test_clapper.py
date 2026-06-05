@@ -5,8 +5,9 @@ from pathlib import Path
 
 import torch
 
-import clapper
-import preprocessor
+from cinema_clapboard_app import clapper
+from cinema_clapboard_app import preprocessor
+
 
 
 class FakeProcessor:

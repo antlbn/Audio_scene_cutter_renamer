@@ -4,9 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
-import clapper
-import cutter
-import preprocessor
+from cinema_clapboard_app import clapper
+from cinema_clapboard_app import cutter
+from cinema_clapboard_app import preprocessor
+
 
 
 def _make_clip_result() -> clapper.ClapperResult:

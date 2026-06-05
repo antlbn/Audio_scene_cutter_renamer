@@ -7,8 +7,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-import scene_parser
-from scene_parser import SceneTake, SceneParserConfig, SceneParseResult
+from cinema_clapboard_app import scene_parser
+from cinema_clapboard_app.scene_parser import SceneTake, SceneParserConfig, SceneParseResult
+
 
 
 def test_load_scene_parser_config_fills_defaults(tmp_path: Path):
@@ -41,7 +42,7 @@ def test_scene_parser_cli(capsys):
         raw_llm_response="{}"
     )
 
-    with patch("scene_parser.parse_scene", return_value=mock_result) as mock_parse:
+    with patch("cinema_clapboard_app.scene_parser.parse_scene", return_value=mock_result) as mock_parse:
         # Test human-readable output
         exit_code = scene_parser.main(["сцена двенадцать дубль пять"])
         assert exit_code == 0
@@ -100,7 +101,7 @@ def test_parse_scene_with_mocked_llm(tmp_path: Path, monkeypatch):
     mock_client.chat.completions.create.return_value = mock_response
 
     # Patch OpenAI client creation
-    with patch("scene_parser.OpenAI", return_value=mock_client) as mock_openai_cls:
+    with patch("cinema_clapboard_app.scene_parser.OpenAI", return_value=mock_client) as mock_openai_cls:
         result = scene_parser.parse_scene(whisper_text, config=config)
 
         # Verify client is created correctly
@@ -148,7 +149,7 @@ def test_parse_scene_populates_missing_raw_announcement(tmp_path: Path, monkeypa
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value = mock_response
 
-    with patch("scene_parser.OpenAI", return_value=mock_client):
+    with patch("cinema_clapboard_app.scene_parser.OpenAI", return_value=mock_client):
         result = scene_parser.parse_scene(whisper_text, config=config)
         assert result.scene_take.sequence == "2"
         assert result.scene_take.shot == "5"
