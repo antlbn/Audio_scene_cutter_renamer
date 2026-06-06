@@ -1,13 +1,45 @@
 #!/usr/bin/env bash
 set -e
 
-# Help message
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Subcommand passthrough
+#
+# Известные subcommand-ы передаются напрямую в Python без bash-трансляции.
+# Argparse внутри cli.py разбирает всё сам.
+#
+# Пример: cinema-clapboard whisper audio.wav --language fr --translate --save
+# ─────────────────────────────────────────────────────────────────────────────
+
+KNOWN_SUBCOMMANDS=("whisper")
+
+if [[ $# -gt 0 ]]; then
+    for sub in "${KNOWN_SUBCOMMANDS[@]}"; do
+        if [[ "$1" == "$sub" ]]; then
+            exec uv run --project "$SCRIPT_DIR" python -m cinema_clapboard_app.cli "$@"
+        fi
+    done
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Основной режим (полный пайплайн)
+# ─────────────────────────────────────────────────────────────────────────────
+
 show_help() {
     echo "Usage: cinema_clapboard <audio_file_or_directory> [options]"
+    echo "       cinema_clapboard whisper <audio_file> [options]"
     echo "       cinema_clapboard -settings"
     echo ""
+    echo "Subcommands:"
+    echo "  whisper <file>       Transcribe a file with Whisper (no CLAP / LLM)"
+    echo "    --language CODE    Force source language (e.g. fr, de, ru)"
+    echo "    --translate        Force translate mode (output always English)"
+    echo "    --json             Print raw JSON to stdout"
+    echo "    --save             Save result as {stem}_whisper.json next to the file"
+    echo ""
     echo "Arguments:"
-    echo "  <audio_file>         Process a single audio file"
+    echo "  <audio_file>         Process a single audio file (full pipeline)"
     echo "  <directory>          Scan directory recursively, select files via TUI"
     echo ""
     echo "Options:"
@@ -20,10 +52,11 @@ show_help() {
     echo "  cinema_clapboard -settings"
     echo "  cinema_clapboard audio.wav -rename"
     echo "  cinema_clapboard ./recordings/ -rename -save"
+    echo "  cinema_clapboard whisper audio.wav --language fr --translate --save"
     exit 0
 }
 
-# Parse options
+# Parse options for the full pipeline mode
 INPUT_PATH=""
 RENAME=false
 SAVE_JSON=false
@@ -35,7 +68,6 @@ while [[ $# -gt 0 ]]; do
             show_help
             ;;
         -settings|--settings)
-            SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
             exec uv run --project "$SCRIPT_DIR" python -m cinema_clapboard_app.cli --settings
             ;;
         -rename|--rename)
@@ -91,5 +123,4 @@ fi
 
 # Run the unified orchestrator inside the virtual environment using uv run.
 # SCRIPT_DIR ensures this works when called from any directory.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 exec uv run --project "$SCRIPT_DIR" python -m cinema_clapboard_app.cli "$INPUT_PATH" "${ARGS[@]}"

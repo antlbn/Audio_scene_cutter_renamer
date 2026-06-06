@@ -286,8 +286,13 @@ def transcribe_audio(
     )
 
 
-def render_result(result: WhisperResult) -> str:
-    """Render a compact human-readable console summary."""
+def render_result(result: WhisperResult, *, show_chunks: bool = True) -> str:
+    """Render a compact human-readable console summary.
+
+    Args:
+        result: The WhisperResult to render.
+        show_chunks: If False, the timestamped chunk list is omitted from output.
+    """
 
     lines = [
         "🗣 Whisper summary",
@@ -298,8 +303,12 @@ def render_result(result: WhisperResult) -> str:
         f"🕒 Sample rate: {result.sample_rate}",
         f"📝 Text: {result.detection.text}",
     ]
-    if not result.chunks:
-        lines.append("🙈 No timestamp chunks returned")
+
+    if not show_chunks or not result.chunks:
+        if result.chunks and not show_chunks:
+            pass  # chunks exist but suppressed — no footer needed
+        elif not result.chunks:
+            lines.append("🙈 No timestamp chunks returned")
         return "\n".join(lines)
 
     lines.append(f"🧩 Chunks: {len(result.chunks)}")

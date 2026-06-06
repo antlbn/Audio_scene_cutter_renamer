@@ -50,12 +50,12 @@ torchaudio = [
   { index = "pytorch-cu121", marker = "sys_platform != 'darwin'" },
 ]
 
-[[tool.uv.indexes]]
+[[tool.uv.index]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
-[[tool.uv.indexes]]
+[[tool.uv.index]]
 name = "pytorch-cu121"
 url = "https://download.pytorch.org/whl/cu121"
 explicit = true
