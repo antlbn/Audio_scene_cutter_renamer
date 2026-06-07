@@ -5,18 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "audio-scene-cutter-renamer"
 version = "0.1.0"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
-  "datasets",
-  "ipywidgets",
   "numpy<2",
   "pyyaml",
-  "pytest",
   "soundfile",
   "torch>=2.2.2",
   "torchaudio>=2.2.2",
   "transformers<5",
-  "ipykernel",
   "InquirerPy",
   "openai>=1.0",
   "pydantic>=2.0",
@@ -28,6 +24,12 @@ dependencies = [
 [dependency-groups]
 dev = [
     "ruff>=0.15.15",
+    "pytest",
+]
+notebook = [
+    "ipywidgets",
+    "ipykernel",
+    "datasets",
 ]
 
 [tool.hatch.build.targets.wheel]
