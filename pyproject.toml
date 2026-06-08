@@ -40,14 +40,16 @@ cinema-clapboard = "cinema_clapboard_app.cli:main"
 
 # ── PyTorch index routing ────────────────────────────────────────────────────
 # macOS (Apple Silicon / Intel): CPU-only.
-# Windows / Linux: CPU-only (250 МБ). Whisper работает без GPU.
-# Для CUDA замени pytorch-cpu на pytorch-cu121 / pytorch-cu124.
+# Windows / Linux: CUDA 12.4 (cu124).
+# Для смены версии CUDA замени pytorch-cu124 на pytorch-cu121 / pytorch-cu118.
 [tool.uv.sources]
 torch = [
-  { index = "pytorch-cpu" },
+  { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
+  { index = "pytorch-cu124", marker = "sys_platform != 'darwin'" },
 ]
 torchaudio = [
-  { index = "pytorch-cpu" },
+  { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
+  { index = "pytorch-cu124", marker = "sys_platform != 'darwin'" },
 ]
 
 [[tool.uv.index]]
@@ -58,4 +60,9 @@ explicit = true
 [[tool.uv.index]]
 name = "pytorch-cu121"
 url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
 explicit = true
