@@ -53,7 +53,7 @@ uv tool install git+https://github.com/ВАШ_НИК/Audio_scene_cutter_renamer
 Если на Windows есть NVIDIA GPU и нужен CUDA-вариант PyTorch, установи tool явно через CUDA-индекс PyTorch:
 
 ```powershell
-uv tool install --force --no-sources --index https://download.pytorch.org/whl/cu124 git+https://github.com/ВАШ_НИК/Audio_scene_cutter_renamer
+uv tool install --force --no-sources --index https://download.pytorch.org/whl/cu121 git+https://github.com/ВАШ_НИК/Audio_scene_cutter_renamer
 ```
 
 Проверить, что CUDA видна установленному tool:
