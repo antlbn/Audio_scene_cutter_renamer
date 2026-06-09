@@ -346,6 +346,16 @@ def _normalize_features(features: torch.Tensor) -> torch.Tensor:
     return torch.nn.functional.normalize(features, dim=-1)
 
 
+def _move_model_inputs_to_device(inputs: Any, device: torch.device) -> Any:
+    if hasattr(inputs, "to"):
+        return inputs.to(device)
+    if isinstance(inputs, dict):
+        return {key: _move_model_inputs_to_device(value, device) for key, value in inputs.items()}
+    if isinstance(inputs, torch.Tensor):
+        return inputs.to(device)
+    return inputs
+
+
 def _build_top_matches(
     scores: torch.Tensor,
     text_keys: list[str],
@@ -423,6 +433,7 @@ def _encode_text_features(runtime: ClapperRuntime, text_keys: list[str]) -> torc
         return_tensors="pt",
         padding=True,
     )
+    text_inputs = _move_model_inputs_to_device(text_inputs, runtime.device)
     with torch.no_grad():
         text_features = runtime.model.get_text_features(**text_inputs)
     return _normalize_features(text_features.to(runtime.device))
@@ -440,6 +451,7 @@ def _encode_audio_window(
         sampling_rate=sample_rate,
         return_tensors="pt",
     )
+    audio_inputs = _move_model_inputs_to_device(audio_inputs, runtime.device)
     with torch.no_grad():
         audio_features = runtime.model.get_audio_features(**audio_inputs)
     return _normalize_features(audio_features.to(runtime.device))
