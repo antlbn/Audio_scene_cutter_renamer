@@ -148,6 +148,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Открыть интерактивный UI для настройки программы.",
     )
     parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="Показать сведения об окружении, PyTorch и доступности CUDA.",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Вывести сырой JSON вместо человекочитаемого резюме.",
@@ -183,8 +188,18 @@ def main(argv: list[str] | None = None) -> int:
         settings.main(["--config", str(args.config)])
         return 0
 
+    if args.doctor:
+        import torch
+
+        print(f"Python: {sys.version.split()[0]}")
+        print(f"PyTorch: {torch.__version__}")
+        print(f"CUDA available: {torch.cuda.is_available()}")
+        if torch.cuda.is_available():
+            print(f"CUDA device: {torch.cuda.get_device_name(0)}")
+        return 0
+
     if args.path is None:
-        print("Ошибка: путь не указан. Укажите файл/папку или используйте --settings", file=sys.stderr)
+        print("Ошибка: путь не указан. Укажите файл/папку или используйте --settings/--doctor", file=sys.stderr)
         return 1
 
     from . import batch_runner

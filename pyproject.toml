@@ -10,8 +10,8 @@ dependencies = [
   "numpy<2",
   "pyyaml",
   "soundfile",
-  "torch>=2.2.2",
-  "torchaudio>=2.2.2",
+  "torch==2.2.2",
+  "torchaudio==2.2.2",
   "transformers<5",
   "InquirerPy",
   "openai>=1.0",
@@ -36,3 +36,18 @@ packages = ["cinema_clapboard_app"]
 
 [project.scripts]
 cinema-clapboard = "cinema_clapboard_app.cli:main"
+
+# Default tool installs should work on machines without an NVIDIA GPU.
+# CUDA wheels are opt-in; see README for the explicit Windows/NVIDIA command.
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
+]
+torchaudio = [
+  { index = "pytorch-cpu", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

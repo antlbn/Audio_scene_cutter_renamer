@@ -40,6 +40,8 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 ### 2. Установить cinema-clapboard
 
+Обычная установка ставит CPU-сборку PyTorch. Она работает на Windows/macOS/Linux без NVIDIA GPU:
+
 ```bash
 uv tool install git+https://github.com/ВАШ_НИК/Audio_scene_cutter_renamer
 ```
@@ -47,6 +49,18 @@ uv tool install git+https://github.com/ВАШ_НИК/Audio_scene_cutter_renamer
 `uv` сам скачает Python ≥ 3.12 если его нет, создаст изолированное окружение и зарегистрирует команду `cinema-clapboard` в PATH.
 
 > **Windows:** если команда не появилась — выполни `uv tool update-shell` и перезапусти терминал.
+
+Если на Windows есть NVIDIA GPU и нужен CUDA-вариант PyTorch, установи tool явно через CUDA-индекс PyTorch:
+
+```powershell
+uv tool install --force --no-sources --index https://download.pytorch.org/whl/cu124 git+https://github.com/ВАШ_НИК/Audio_scene_cutter_renamer
+```
+
+Проверить, что CUDA видна установленному tool:
+
+```powershell
+cinema-clapboard --doctor
+```
 
 ### 3. Добавить API-ключи
 
