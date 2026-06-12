@@ -83,6 +83,8 @@ class ClipConfig:
 
     pre_hit_seconds: float = DEFAULT_PRE_HIT_SECONDS
     post_hit_seconds: float = DEFAULT_POST_HIT_SECONDS
+    # Apply EBU R128 loudness normalization to the Whisper fragment via ffmpeg.
+    normalize_audio: bool = True
 
 
 @dataclass(slots=True)
@@ -182,6 +184,7 @@ def load_config(config_path: str | Path | None = None) -> ClapperConfig:
         "clip": {
             "pre_hit_seconds": DEFAULT_PRE_HIT_SECONDS,
             "post_hit_seconds": DEFAULT_POST_HIT_SECONDS,
+            "normalize_audio": True,
         },
     }
     merged = merge_config_dict(defaults, raw)
@@ -211,6 +214,7 @@ def load_config(config_path: str | Path | None = None) -> ClapperConfig:
     clip = ClipConfig(
         pre_hit_seconds=max(0.0, float(clip_raw["pre_hit_seconds"])),
         post_hit_seconds=max(0.0, float(clip_raw["post_hit_seconds"])),
+        normalize_audio=bool(clip_raw.get("normalize_audio", True)),
     )
     return ClapperConfig(audio_model=audio_model, text_search=text_search, clip=clip)
 

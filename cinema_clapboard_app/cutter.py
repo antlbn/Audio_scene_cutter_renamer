@@ -32,8 +32,14 @@ def _select_best_hit(result: clapper.ClapperResult) -> clapper.ClapperHit:
     return min(result.best_scores, key=lambda hit: float(hit.timestamp))
 
 
-def _build_ffmpeg_trim_command(audio: preprocessor.StandardizedAudio, start_seconds: float, duration_seconds: float) -> list[str]:
-    return [
+def _build_ffmpeg_trim_command(
+    audio: preprocessor.StandardizedAudio,
+    start_seconds: float,
+    duration_seconds: float,
+    *,
+    normalize: bool = False,
+) -> list[str]:
+    cmd = [
         "ffmpeg",
         "-v",
         "error",
@@ -47,6 +53,12 @@ def _build_ffmpeg_trim_command(audio: preprocessor.StandardizedAudio, start_seco
         str(audio.channels),
         "-ar",
         str(audio.sample_rate),
+    ]
+    if normalize:
+        # EBU R128 single-pass loudness normalization.
+        # I=-16 LUFS target works well for Whisper; TP=-1.5 prevents clipping.
+        cmd += ["-af", "loudnorm=I=-16:TP=-1.5:LRA=11"]
+    cmd += [
         "-c:a",
         "aac",
         "-b:a",
@@ -55,17 +67,20 @@ def _build_ffmpeg_trim_command(audio: preprocessor.StandardizedAudio, start_seco
         "adts",
         "pipe:1",
     ]
+    return cmd
 
 
 def _encode_trimmed_audio(
     audio: preprocessor.StandardizedAudio,
     start_seconds: float,
     duration_seconds: float,
+    *,
+    normalize: bool = False,
 ) -> bytes:
     if shutil.which("ffmpeg") is None:
         raise RuntimeError("ffmpeg is required to trim audio in memory")
 
-    ffmpeg_cmd = _build_ffmpeg_trim_command(audio, start_seconds, duration_seconds)
+    ffmpeg_cmd = _build_ffmpeg_trim_command(audio, start_seconds, duration_seconds, normalize=normalize)
     proc = subprocess.run(ffmpeg_cmd, check=True, capture_output=True, input=audio.payload)
     return proc.stdout
 
@@ -103,7 +118,12 @@ def cut_audio_by_clapper(
     if clip_duration_seconds <= 0:
         raise ValueError("Computed clip duration is empty")
 
-    payload = _encode_trimmed_audio(standardized_audio, clip_start_seconds, clip_duration_seconds)
+    payload = _encode_trimmed_audio(
+        standardized_audio,
+        clip_start_seconds,
+        clip_duration_seconds,
+        normalize=config.clip.normalize_audio,
+    )
     clipped_audio = preprocessor.StandardizedAudio(
         file_name=standardized_audio.file_name,
         payload=payload,

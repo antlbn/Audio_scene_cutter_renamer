@@ -39,6 +39,10 @@ clapper:
     pre_hit_seconds: 10.0
     # Number of seconds to keep after the strongest clapper hit.
     post_hit_seconds: 2.0
+    # Apply EBU R128 loudness normalization (loudnorm) to the Whisper fragment.
+    # Boosts quiet announcer voices and tames loud preceding content.
+    # Target: I=-16 LUFS, TP=-1.5 dBTP, LRA=11 LU.  Set to false to disable.
+    normalize_audio: true
 
 preprocessor:
   # All pipeline inputs are standardized to AAC in memory at this rate.
