@@ -56,17 +56,20 @@ def load_env_file(env_path: Path) -> None:
             os.environ[key] = value
 
 def get_user_config_path() -> Path:
+    home_dir = Path.home()
+    app_dir = home_dir / ".cinema_clapboard"
+    user_config = app_dir / "config.yaml"
+
     # Ensure ffmpeg is available: static-ffmpeg provides a bundled binary and
     # adds it to PATH so shutil.which('ffmpeg') finds it on all platforms.
     try:
         import static_ffmpeg
-        static_ffmpeg.add_paths()
+        from static_ffmpeg.run import get_platform_key
+        # Cache ffmpeg outside of the virtual environment to survive uv tool upgrades
+        ffmpeg_cache_dir = app_dir / "ffmpeg_cache" / get_platform_key()
+        static_ffmpeg.add_paths(download_dir=str(ffmpeg_cache_dir))
     except ImportError:
         pass  # System ffmpeg will be used if available
-
-    home_dir = Path.home()
-    app_dir = home_dir / ".cinema_clapboard"
-    user_config = app_dir / "config.yaml"
     
     if not user_config.exists():
         app_dir.mkdir(parents=True, exist_ok=True)
