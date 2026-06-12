@@ -172,6 +172,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    import warnings
+    import logging
+    
+    # Suppress annoying Torch/Transformers warnings (e.g. flash attention on Windows/CPU)
+    warnings.filterwarnings("ignore", message=".*was not compiled with flash attention.*", category=UserWarning)
+    
+    # Suppress INFO logs from httpx during OpenRouter API calls
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
     raw = list(argv) if argv is not None else sys.argv[1:]
 
     # ── Subcommand routing ───────────────────────────────────────────────────
