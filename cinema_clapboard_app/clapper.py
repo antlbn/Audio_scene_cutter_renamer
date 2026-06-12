@@ -604,6 +604,15 @@ def render_result(result: ClapperResult) -> str:
         lines.append("🙈 No matches above threshold")
         return "\n".join(lines)
 
+    best_hit = max(result.best_scores, key=lambda h: h.score)
+    first_hit = min(result.best_scores, key=lambda h: h.timestamp)
+    lines.append(
+        f"🏆 Best hit:  ⏱ {best_hit.timestamp:.2f}s | score {best_hit.score:.3f} | {best_hit.text_key}"
+    )
+    lines.append(
+        f"⏩ First hit: ⏱ {first_hit.timestamp:.2f}s | score {first_hit.score:.3f} | {first_hit.text_key}"
+    )
+
     for index, hit in enumerate(result.best_scores, start=1):
         top_matches = ", ".join(
             f"{match.text_key} {match.score:.3f}" for match in hit.top_matches
