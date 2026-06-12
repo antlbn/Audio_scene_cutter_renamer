@@ -34,6 +34,8 @@ clapper:
       #- clapper strike
 
   clip:
+    # Number of seconds to keep before the strongest clapper hit.
+    pre_hit_seconds: 10.0
     # Number of seconds to keep after the strongest clapper hit.
     post_hit_seconds: 2.0
 

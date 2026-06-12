@@ -39,6 +39,7 @@ DEFAULT_WINDOW_SECONDS = 1.0
 DEFAULT_HOP_SECONDS = 0.5
 DEFAULT_THRESHOLD = 0.10
 DEFAULT_TOP_N = 3
+DEFAULT_PRE_HIT_SECONDS = 10.0
 DEFAULT_POST_HIT_SECONDS = 2.0
 DEFAULT_TEXT_KEYS = [
     "clapper board snap",
@@ -80,6 +81,7 @@ class TextSearchConfig:
 class ClipConfig:
     """Post-processing settings for clapper-driven audio trimming."""
 
+    pre_hit_seconds: float = DEFAULT_PRE_HIT_SECONDS
     post_hit_seconds: float = DEFAULT_POST_HIT_SECONDS
 
 
@@ -178,6 +180,7 @@ def load_config(config_path: str | Path | None = None) -> ClapperConfig:
             "show_progress": True,
         },
         "clip": {
+            "pre_hit_seconds": DEFAULT_PRE_HIT_SECONDS,
             "post_hit_seconds": DEFAULT_POST_HIT_SECONDS,
         },
     }
@@ -206,6 +209,7 @@ def load_config(config_path: str | Path | None = None) -> ClapperConfig:
         show_progress=bool(text_search_raw["show_progress"]),
     )
     clip = ClipConfig(
+        pre_hit_seconds=max(0.0, float(clip_raw["pre_hit_seconds"])),
         post_hit_seconds=max(0.0, float(clip_raw["post_hit_seconds"])),
     )
     return ClapperConfig(audio_model=audio_model, text_search=text_search, clip=clip)
