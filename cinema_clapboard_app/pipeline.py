@@ -162,6 +162,7 @@ class PipelineResult(BaseModel):
     clapper_best_timestamp: float | None = Field(None, description="Timestamp of the best clapper hit")
     clapper_best_score: float | None = Field(None, description="Score of the best clapper hit")
     clapper_best_text_key: str | None = Field(None, description="Matched text key for the best clapper hit")
+    clapper_first_timestamp: float | None = Field(None, description="Timestamp of the chronologically first clapper hit")
 
     # Cutter
     cutter_clip_start: float | None = Field(None, description="Start timestamp of the cut audio clip")
@@ -258,6 +259,7 @@ def run_pipeline(
             clapper_best_timestamp=None,
             clapper_best_score=None,
             clapper_best_text_key=None,
+            clapper_first_timestamp=None,
             cutter_clip_start=None,
             cutter_clip_end=None,
             whisper_text=None,
@@ -273,7 +275,9 @@ def run_pipeline(
 
     # 4. Cutter & Whisper: run based on clapper hits
     best_hit = max(clap_res.best_scores, key=lambda hit: (float(hit.score), -float(hit.timestamp)))
+    first_hit = min(clap_res.best_scores, key=lambda hit: float(hit.timestamp))
     LOGGER.info("best clapper hit at %.2fs (score %.3f)", best_hit.timestamp, best_hit.score)
+    LOGGER.info("first clapper hit at %.2fs (score %.3f)", first_hit.timestamp, first_hit.score)
 
     cutter_clip_start = None
     cutter_clip_end = None
@@ -333,6 +337,7 @@ def run_pipeline(
         clapper_best_timestamp=best_hit.timestamp,
         clapper_best_score=best_hit.score,
         clapper_best_text_key=best_hit.text_key,
+        clapper_first_timestamp=first_hit.timestamp,
         cutter_clip_start=cutter_clip_start,
         cutter_clip_end=cutter_clip_end,
         whisper_text=whisp_res.detection.text,

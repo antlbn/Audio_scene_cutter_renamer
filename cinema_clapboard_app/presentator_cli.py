@@ -98,6 +98,8 @@ def _present_name_extractor(data: dict[str, Any]) -> None:
     ])
     if data.get("clapper_best_timestamp") is not None:
         lines.append(f"   Best Hit Time:    {data.get('clapper_best_timestamp'):.2f} s")
+    if data.get("clapper_first_timestamp") is not None:
+        lines.append(f"   First Hit Time:   {data.get('clapper_first_timestamp'):.2f} s")
 
     # Optional: transcription snippet
     if data.get("whisper_text"):
@@ -147,7 +149,9 @@ def _present_whisper_extractor(data: dict[str, Any]) -> None:
         lines.extend([
             "",
             "🎙️  Detection Context:",
-            f"   Clapper Found At: {data.get('clapper_best_timestamp'):.2f} s",
+            f"   Best Hit Time:    {data.get('clapper_best_timestamp'):.2f} s",
         ])
+        if data.get("clapper_first_timestamp") is not None:
+            lines.append(f"   First Hit Time:   {data.get('clapper_first_timestamp'):.2f} s")
 
     print("\n".join(lines))
