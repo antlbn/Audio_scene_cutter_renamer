@@ -46,3 +46,6 @@ Do NOT set null just because a label word was missing — use positional order i
 ## Output
 Respond ONLY with valid JSON matching this schema exactly. No markdown, no explanation, no extra text.
 {schema}
+
+## Hint for Fench: 
+sometimes French teams can use "1 sur 2, deuxieme" instead of "1 sur 2, scene 2" - thats find we parse int "2"
