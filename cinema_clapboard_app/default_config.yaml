@@ -25,6 +25,7 @@ clapper:
       - clapper board snap
       #- sharp clap sound
       #- loud click
+      - handclap sound
       - film slate clap
       #- clap noise
       #- clapperboard closing
