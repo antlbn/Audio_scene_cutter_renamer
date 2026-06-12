@@ -28,7 +28,29 @@ def present(
         json_output: If True, output raw JSON instead of formatted text
     """
     if json_output:
+        import sys
         print(json.dumps(data, indent=2))
+        
+        # Print warning to stderr so it doesn't pollute the JSON stdout
+        if use_case == "name_extractor":
+            clapper_hits = data.get("clapper_hits", 0)
+            llm_seq = data.get("llm_sequence")
+            llm_shot = data.get("llm_shot")
+            llm_take = data.get("llm_take")
+            filename = data.get("input_name", "N/A")
+            
+            if clapper_hits <= 0:
+                print(
+                    f"⚠️ Внимание: Clapper ниже threshold (сигнал не найден). "
+                    f"Пожалуйста, проверьте файл '{filename}' вручную.",
+                    file=sys.stderr,
+                )
+            elif not llm_seq or not llm_shot or llm_take is None:
+                print(
+                    f"⚠️ Внимание: Не все обязательные поля (sequence, shot, take) "
+                    f"были заполнены LLM. Пожалуйста, проверьте файл '{filename}' вручную.",
+                    file=sys.stderr,
+                )
         return
 
     if use_case == "name_extractor":
@@ -68,14 +90,14 @@ def _present_name_extractor(data: dict[str, Any]) -> None:
         lines.append(f"   📝 Announcement:   \"{announcement}\"")
 
     # Optional: clapper detection summary
-    if data.get("clapper_hits"):
-        lines.extend([
-            "",
-            "🎙️  Clapper Detection:",
-            f"   Hits Found:       {data.get('clapper_hits', 0)}",
-        ])
-        if data.get("clapper_best_timestamp") is not None:
-            lines.append(f"   Best Hit Time:    {data.get('clapper_best_timestamp'):.2f} s")
+    clapper_hits = data.get("clapper_hits", 0)
+    lines.extend([
+        "",
+        "🎙️  Clapper Detection:",
+        f"   Hits Found:       {clapper_hits}",
+    ])
+    if data.get("clapper_best_timestamp") is not None:
+        lines.append(f"   Best Hit Time:    {data.get('clapper_best_timestamp'):.2f} s")
 
     # Optional: transcription snippet
     if data.get("whisper_text"):
@@ -84,6 +106,19 @@ def _present_name_extractor(data: dict[str, Any]) -> None:
             "",
             "🗣  Transcription:",
             f"   \"{whisper_text}\"",
+        ])
+
+    # Add warnings if the main conditions failed
+    filename = data.get("input_name", "N/A")
+    if clapper_hits <= 0:
+        lines.extend([
+            "",
+            f"⚠️ Внимание: Clapper ниже threshold (сигнал не найден). Пожалуйста, проверьте файл '{filename}' вручную.",
+        ])
+    elif not sequence or not shot or take is None:
+        lines.extend([
+            "",
+            f"⚠️ Внимание: Не все обязательные поля (sequence, shot, take) были заполнены LLM. Пожалуйста, проверьте файл '{filename}' вручную.",
         ])
 
     print("\n".join(lines))

@@ -300,3 +300,30 @@ class TestEdgeCases:
         
         # Should handle special characters without crashing
         assert "тест.wav" in captured.out or "test" in captured.out.lower()
+
+    def test_present_clapper_below_threshold_warning(self, capsys):
+        """Test that a clapper hit warning is displayed when below threshold."""
+        data = {
+            "input_name": "test_warn.wav",
+            "new_name": "test_warn.wav",
+            "clapper_hits": 0,
+        }
+        presentator_cli.present(data, use_case="name_extractor")
+        captured = capsys.readouterr()
+        assert "⚠️ Внимание: Clapper ниже threshold (сигнал не найден)." in captured.out
+        assert "Пожалуйста, проверьте файл 'test_warn.wav' вручную." in captured.out
+
+    def test_present_llm_fields_missing_warning(self, capsys):
+        """Test that an LLM fields missing warning is displayed."""
+        data = {
+            "input_name": "test_warn.wav",
+            "new_name": "test_warn.wav",
+            "clapper_hits": 1,
+            "llm_sequence": None,
+            "llm_shot": "2",
+            "llm_take": 3,
+        }
+        presentator_cli.present(data, use_case="name_extractor")
+        captured = capsys.readouterr()
+        assert "⚠️ Внимание: Не все обязательные поля (sequence, shot, take) были заполнены LLM." in captured.out
+        assert "Пожалуйста, проверьте файл 'test_warn.wav' вручную." in captured.out

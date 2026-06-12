@@ -168,17 +168,35 @@ class PipelineResult(BaseModel):
     cutter_clip_end: float | None = Field(None, description="End timestamp of the cut audio clip")
 
     # Whisper
-    whisper_text: str = Field(description="Whisper transcription text")
-    whisper_model: str = Field(description="Whisper model ID")
-    whisper_language: str = Field(description="Whisper transcription language")
-    whisper_task: str = Field(description="Whisper transcription task")
+    whisper_text: str | None = Field(default=None, description="Whisper transcription text")
+    whisper_model: str | None = Field(default=None, description="Whisper model ID")
+    whisper_language: str | None = Field(default=None, description="Whisper transcription language")
+    whisper_task: str | None = Field(default=None, description="Whisper transcription task")
 
     # LLM Scene Parser
-    llm_model: str = Field(description="LLM model used for scene parsing")
+    llm_model: str | None = Field(default=None, description="LLM model used for scene parsing")
     llm_sequence: str | None = Field(None, description="Extracted sequence number")
     llm_shot: str | None = Field(None, description="Extracted shot number")
     llm_take: int | None = Field(None, description="Extracted take number")
-    llm_announcement: str = Field(description="Full raw announcement as spoken")
+    llm_announcement: str | None = Field(default=None, description="Full raw announcement as spoken")
+
+
+def is_pipeline_successful(result: PipelineResult) -> bool:
+    """Check if the pipeline was completely successful.
+
+    A successful pipeline means:
+    1. Clapper hits were found (clapper_hits > 0).
+    2. The three main LLM fields (sequence, shot, take) were successfully extracted.
+    """
+    if result.clapper_hits <= 0:
+        return False
+    if (
+        result.llm_sequence in (None, "")
+        or result.llm_shot in (None, "")
+        or result.llm_take is None
+    ):
+        return False
+    return True
 
 
 def run_pipeline(
@@ -227,28 +245,49 @@ def run_pipeline(
     clap_runtime = clapper.load_runtime(clap_config)
     clap_res = clapper.analyze_audio(audio_path, config=clap_config, runtime=clap_runtime)
 
+    # If clapper threshold is not met (0 hits), stop early.
+    if not clap_res.best_scores:
+        LOGGER.warning("clapper below threshold (no claps found). skipping subsequent stages.")
+        return PipelineResult(
+            input_name=audio_path.name,
+            new_name=audio_path.name,
+            preprocessor_codec=std_audio.codec,
+            preprocessor_sample_rate=std_audio.sample_rate,
+            preprocessor_duration_seconds=round(std_audio.duration_seconds, 6),
+            clapper_hits=0,
+            clapper_best_timestamp=None,
+            clapper_best_score=None,
+            clapper_best_text_key=None,
+            cutter_clip_start=None,
+            cutter_clip_end=None,
+            whisper_text=None,
+            whisper_model=None,
+            whisper_language=None,
+            whisper_task=None,
+            llm_model=None,
+            llm_sequence=None,
+            llm_shot=None,
+            llm_take=None,
+            llm_announcement=None,
+        )
+
     # 4. Cutter & Whisper: run based on clapper hits
-    best_hit = None
+    best_hit = max(clap_res.best_scores, key=lambda hit: (float(hit.score), -float(hit.timestamp)))
+    LOGGER.info("best clapper hit at %.2fs (score %.3f)", best_hit.timestamp, best_hit.score)
+
     cutter_clip_start = None
     cutter_clip_end = None
     whisper_source = std_audio
 
-    if clap_res.best_scores:
-        # Determine best hit (highest score)
-        best_hit = max(clap_res.best_scores, key=lambda hit: (float(hit.score), -float(hit.timestamp)))
-        LOGGER.info("best clapper hit at %.2fs (score %.3f)", best_hit.timestamp, best_hit.score)
-
-        # Run cutter to trim audio in memory
-        try:
-            cut_res = cutter.cut_audio_by_clapper(std_audio, clap_res, config=clap_config)
-            whisper_source = cut_res.standardized_audio
-            cutter_clip_start = cut_res.clip_start_seconds
-            cutter_clip_end = cut_res.clip_end_seconds
-            LOGGER.info("audio trimmed to %s s - %s s", cutter_clip_start, cutter_clip_end)
-        except Exception as exc:
-            LOGGER.warning("cutting failed: %s. transcribing full audio.", exc)
-    else:
-        LOGGER.warning("no clapper hits detected. transcribing full audio.")
+    # Run cutter to trim audio in memory
+    try:
+        cut_res = cutter.cut_audio_by_clapper(std_audio, clap_res, config=clap_config)
+        whisper_source = cut_res.standardized_audio
+        cutter_clip_start = cut_res.clip_start_seconds
+        cutter_clip_end = cut_res.clip_end_seconds
+        LOGGER.info("audio trimmed to %s s - %s s", cutter_clip_start, cutter_clip_end)
+    except Exception as exc:
+        LOGGER.warning("cutting failed: %s. transcribing full audio.", exc)
 
     # 5. Whisper: transcribe the audio source (either cut or full standardized)
     whisp_runtime = whisper.load_runtime(whisp_config)
@@ -257,8 +296,17 @@ def run_pipeline(
     # 6. LLM Scene Parser: parse the transcribed text
     llm_res = scene_parser.parse_scene(whisp_res, config=llm_config)
 
+    # Check if all 3 fields are successfully filled (meaning not None and not empty string)
+    is_llm_valid = (
+        llm_res is not None
+        and llm_res.scene_take is not None
+        and llm_res.scene_take.sequence not in (None, "")
+        and llm_res.scene_take.shot not in (None, "")
+        and llm_res.scene_take.take is not None
+    )
+
     final_audio_path = Path(audio_path)
-    if rename:
+    if rename and is_llm_valid:
         renamer_config = load_renamer_config(config_path)
         final_audio_path = new_name(
             final_audio_path,
@@ -271,6 +319,8 @@ def run_pipeline(
             extract_pattern=renamer_config["extract_pattern"],
             extract_format=renamer_config["extract_format"],
         )
+    elif rename:
+        LOGGER.warning("LLM sequence, shot, or take are missing. Skipping file rename.")
 
     # 7. Aggregate everything into PipelineResult
     return PipelineResult(
@@ -280,9 +330,9 @@ def run_pipeline(
         preprocessor_sample_rate=std_audio.sample_rate,
         preprocessor_duration_seconds=round(std_audio.duration_seconds, 6),
         clapper_hits=len(clap_res.best_scores),
-        clapper_best_timestamp=best_hit.timestamp if best_hit else None,
-        clapper_best_score=best_hit.score if best_hit else None,
-        clapper_best_text_key=best_hit.text_key if best_hit else None,
+        clapper_best_timestamp=best_hit.timestamp,
+        clapper_best_score=best_hit.score,
+        clapper_best_text_key=best_hit.text_key,
         cutter_clip_start=cutter_clip_start,
         cutter_clip_end=cutter_clip_end,
         whisper_text=whisp_res.detection.text,

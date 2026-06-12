@@ -122,8 +122,8 @@ def _run_single(
     rename: bool,
     json_output: bool,
     save_json: bool,
-) -> bool:
-    """Запустить пайплайн на одном файле. Вернуть True при успехе."""
+) -> tuple[bool, pipeline.PipelineResult | None]:
+    """Запустить пайплайн на одном файле. Вернуть (успех, результат)."""
     try:
         result = pipeline.run_pipeline(
             audio_path,
@@ -144,12 +144,12 @@ def _run_single(
             output_path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
             print(f"\n💾 Результат сохранён: {output_path}", file=sys.stderr)
 
-        return True
+        return True, result
 
     except Exception as exc:
         LOGGER.exception("Ошибка при обработке %s: %s", audio_path.name, exc)
         print(f"❌ {audio_path.name} — ошибка: {exc}", file=sys.stderr)
-        return False
+        return False, None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -246,27 +246,43 @@ def _run_batch(
     total = len(selected)
     success_count = 0
     error_count = 0
+    manual_check_files: list[Path] = []
 
     for index, audio_path in enumerate(selected, start=1):
         print(f"[{index}/{total}] 🔄 {audio_path.name}")
-        ok = _run_single(
+        ok, result = _run_single(
             audio_path,
             config_path=config_path,
             rename=rename,
             json_output=json_output,
             save_json=save_json,
         )
-        if ok:
-            success_count += 1
+        if ok and result is not None:
+            if pipeline.is_pipeline_successful(result):
+                success_count += 1
+            else:
+                manual_check_files.append(audio_path)
+                print(f"       ↳ требует ручной проверки, продолжаем\n", file=sys.stderr)
         else:
             error_count += 1
-            print("       ↳ пропущен, продолжаем\n", file=sys.stderr)
+            manual_check_files.append(audio_path)
+            print("       ↳ пропущен из-за ошибки, продолжаем\n", file=sys.stderr)
 
     # ── Финальная сводка ────────────────────────────────────────────────────
     print()
     print("─" * 56)
-    print(f"  Итог: ✅ {success_count} успешно" + (f" / ❌ {error_count} ошибка(и)" if error_count else ""))
+    print(
+        f"  Итог: ✅ {success_count} успешно"
+        + (f" / ⚠️ {len(manual_check_files)} на ручную проверку" if manual_check_files else "")
+        + (f" / ❌ {error_count} ошибка(и)" if error_count else "")
+    )
     print("─" * 56)
+
+    if manual_check_files:
+        print("\n⚠️ Список файлов для ручной проверки:")
+        for f in manual_check_files:
+            print(f"  • {f.name}")
+        print()
 
     return 0 if error_count == 0 else 1
 
@@ -288,14 +304,16 @@ def run(args: argparse.Namespace) -> int:
 
     if path.is_file():
         # ── Один файл: сразу пайплайн ───────────────────────────────────────
-        ok = _run_single(
+        ok, result = _run_single(
             path,
             config_path=config_path,
             rename=args.rename,
             json_output=args.json,
             save_json=args.save,
         )
-        return 0 if ok else 1
+        if ok and result is not None and pipeline.is_pipeline_successful(result):
+            return 0
+        return 1
 
     if path.is_dir():
         # ── Директория: batch-режим с TUI ───────────────────────────────────

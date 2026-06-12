@@ -118,22 +118,24 @@ def test_run_pipeline_without_clapper_hits(
          patch("cinema_clapboard_app.whisper.load_runtime", return_value=MagicMock()), \
          patch("cinema_clapboard_app.clapper.analyze_audio", return_value=fake_clapper_no_hits), \
          patch("cinema_clapboard_app.cutter.cut_audio_by_clapper") as mock_cutter, \
-         patch("cinema_clapboard_app.whisper.transcribe_audio", return_value=fake_whisper_result), \
-         patch("cinema_clapboard_app.scene_parser.parse_scene", return_value=fake_scene_parser_result):
+         patch("cinema_clapboard_app.whisper.transcribe_audio", return_value=fake_whisper_result) as mock_whisper, \
+         patch("cinema_clapboard_app.scene_parser.parse_scene", return_value=fake_scene_parser_result) as mock_parser:
 
         result = pipeline.run_pipeline(dummy_file)
 
-        # Verify cutter was skipped since there are no claps
+        # Verify cutter, whisper and parser were skipped since there are no claps
         mock_cutter.assert_not_called()
+        mock_whisper.assert_not_called()
+        mock_parser.assert_not_called()
 
         assert result.clapper_hits == 0
         assert result.clapper_best_timestamp is None
         assert result.cutter_clip_start is None
         assert result.cutter_clip_end is None
-        assert result.whisper_text == "сцена один дубль четыре"
-        assert result.llm_sequence == "1"
-        assert result.llm_shot == "3"
-        assert result.llm_take == 4
+        assert result.whisper_text is None
+        assert result.llm_sequence is None
+        assert result.llm_shot is None
+        assert result.llm_take is None
 
 
 def test_pipeline_cli_output(tmp_path, capsys):
