@@ -29,7 +29,7 @@ def _select_best_hit(result: clapper.ClapperResult) -> clapper.ClapperHit:
         print("[cutter] no timestamps were found in ClapperResult.best_scores", file=sys.stderr)
         raise ValueError("No timestamps were found in ClapperResult.best_scores")
 
-    return max(result.best_scores, key=lambda hit: (float(hit.score), -float(hit.timestamp)))
+    return min(result.best_scores, key=lambda hit: float(hit.timestamp))
 
 
 def _build_ffmpeg_trim_command(audio: preprocessor.StandardizedAudio, start_seconds: float, duration_seconds: float) -> list[str]:
