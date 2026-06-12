@@ -13,7 +13,9 @@ from typing import Any
 
 import yaml
 from openai import OpenAI
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, field_validator
 
 from .config_utils import load_env_file, merge_config_dict, resolve_path
 from .config_utils import get_user_env_path
@@ -41,6 +43,20 @@ class SceneTake(BaseModel):
     shot: str | None = Field(default=None, description="Shot/plan number (plan) (e.g. '3', '3A')")
     take: int | None = Field(default=None, description="Take/prise number (prise) (e.g. 1, 2, 3)")
     announcement: str = Field(description="The full raw announcement exactly as spoken (unstructured)")
+
+    @field_validator("take", mode="before")
+    @classmethod
+    def coerce_take_to_int(cls, v: object) -> int | None:
+        """Accept int, numeric string, or string containing a number (e.g. '2ème prise')."""
+        if v is None:
+            return None
+        if isinstance(v, int):
+            return v
+        # Extract the first sequence of digits from whatever string the LLM returns
+        match = re.search(r"\d+", str(v))
+        if match:
+            return int(match.group())
+        return None
 
 
 @dataclass(slots=True)
